@@ -232,6 +232,7 @@ func (a *AgentNetConn) initWebRTCAsAnswerer(config webrtc.Configuration) chan ut
 			// just log
 			log.Infof("failed to send ice candidate: %v", err)
 		}
+		log.Infof("sent ice candidate %v", c)
 	})
 
 	// get an offer

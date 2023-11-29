@@ -33,15 +33,15 @@ type AnswererServerImpl struct {
 func NewAnswererServer(
 	recvOfferCh <-chan offering,
 	answerCh chan<- AnsPacket,
-	iceToAnsCh chan<- IcePacket,
-	iceToOffCh <-chan IcePacket,
+	iceToAnswerCh <-chan IcePacket,
+	iceToOfferCh chan<- IcePacket,
 	recvCloseIceToAnsCh <-chan string,
 ) *AnswererServerImpl {
 	return &AnswererServerImpl{
 		recvOfferCh:         recvOfferCh,
 		answerCh:            answerCh,
-		iceToAns:            iceToAnsCh,
-		iceToOff:            iceToOffCh,
+		iceToAns:            iceToOfferCh,
+		iceToOff:            iceToAnswerCh,
 		recvCloseIceToAnsCh: recvCloseIceToAnsCh,
 		AnsID2iceToAnsChan:  make(map[string]chan string),
 	}

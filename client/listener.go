@@ -259,6 +259,7 @@ func (l *ListenerNetConn) initWebRTCAsOfferer(config webrtc.Configuration) async
 					log.Infof("ICE candidate stream closed")
 					return
 				}
+				log.Infof("ICE candidate sent")
 			}
 		}
 	}()
