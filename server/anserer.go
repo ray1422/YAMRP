@@ -18,8 +18,8 @@ type AnswererServerImpl struct {
 	proto.UnimplementedYAMRPAnswererServer
 	recvOfferCh         <-chan offering
 	answerCh            chan<- AnsPacket
-	iceToAns            chan<- IcePacket
-	iceToOff            <-chan IcePacket
+	iceToOfferCh        chan<- IcePacket
+	iceToAnsCh          <-chan IcePacket
 	recvCloseIceToAnsCh <-chan string
 
 	// FIXME make ice candidate forwarding a delicate service
@@ -40,8 +40,8 @@ func NewAnswererServer(
 	return &AnswererServerImpl{
 		recvOfferCh:         recvOfferCh,
 		answerCh:            answerCh,
-		iceToAns:            iceToOfferCh,
-		iceToOff:            iceToAnswerCh,
+		iceToOfferCh:        iceToOfferCh,
+		iceToAnsCh:          iceToAnswerCh,
 		recvCloseIceToAnsCh: recvCloseIceToAnsCh,
 		AnsID2iceToAnsChan:  make(map[string]chan string),
 	}
@@ -105,7 +105,7 @@ func (a *AnswererServerImpl) SendIceCandidate(srv proto.YAMRPAnswerer_SendIceCan
 				req, err := srv.Recv()
 				if req != nil {
 					// FIXME validate the ice candidate
-					a.iceToAns <- IcePacket{
+					a.iceToOfferCh <- IcePacket{
 						answererID:   req.AnswererId,
 						iceCandidate: req.Body,
 					}
@@ -175,8 +175,16 @@ func (a *AnswererServerImpl) Serve() error {
 func (a *AnswererServerImpl) iceCandidateRouter() {
 	for {
 		select {
-		case ice := <-a.iceToOff:
-			a.iceToAns <- ice
+		case ice := <-a.iceToAnsCh:
+			a.RLock()
+			ch, ok := a.AnsID2iceToAnsChan[ice.answererID]
+			a.RUnlock()
+			if !ok {
+				log.Warnf("ice chan not found for answerID %s", ice.answererID)
+				continue
+			}
+			ch <- ice.iceCandidate
+
 		case <-a.recvCloseIceToAnsCh:
 			// FIXME
 		}

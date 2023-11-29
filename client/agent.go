@@ -283,7 +283,6 @@ func (a *AgentNetConn) initWebRTCAsAnswerer(config webrtc.Configuration) chan ut
 
 func (a *AgentNetConn) onDataChannelHandler(d *webrtc.DataChannel) {
 	log.Debugf("received data channel")
-	log.Debugf("received data channel")
 	// create a proxy
 	// TODO: should passing dial builder
 	dial, err := net.Dial(a.network, a.addr)
