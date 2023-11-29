@@ -16,19 +16,20 @@ import (
 func answerServerFixture(t *testing.T) (
 	offerCh chan offering,
 	answerCh chan AnsPacket,
-	iceCh chan IcePacket,
-	recvCloseIceCh chan string,
+	iceToAnsCh chan IcePacket,
+	recvCloseIceToAnsCh chan string,
 	lis *mock.Listener,
 	ansServer *AnswererServerImpl,
 	client proto.YAMRPAnswererClient,
 ) {
 	offerCh = make(chan offering)
 	answerCh = make(chan AnsPacket, 1024)
-	iceCh = make(chan IcePacket, 1024)
-	recvCloseIceCh = make(chan string)
+	iceToAnsCh = make(chan IcePacket, 1024)
+	iceToOffCh := make(chan IcePacket, 1024)
+	recvCloseIceToAnsCh = make(chan string)
 	lis = mock.NewMockListener()
 
-	ansServer = NewAnswererServer(offerCh, answerCh, iceCh, recvCloseIceCh)
+	ansServer = NewAnswererServer(offerCh, answerCh, iceToAnsCh, iceToOffCh, recvCloseIceToAnsCh)
 	go ansServer.Serve()
 	s := grpc.NewServer()
 	proto.RegisterYAMRPAnswererServer(s, ansServer)
@@ -39,16 +40,17 @@ func answerServerFixture(t *testing.T) (
 	ansServer = NewAnswererServer(
 		offerCh,
 		answerCh,
-		iceCh,
-		recvCloseIceCh,
+		iceToAnsCh,
+		iceToOffCh,
+		recvCloseIceToAnsCh,
 	)
 	return
 }
 
 func TestAnswerServer(t *testing.T) {
 	// given
-	offerCh, AnswerCh, iceCh, recvCloseIceCh, lis, ansServer, client := answerServerFixture(t)
-	_, _, _, _, _, _, _ = offerCh, AnswerCh, iceCh, recvCloseIceCh, lis, ansServer, client
+	offerCh, AnswerCh, iceToAnsCh, recvCloseIceToAnsCh, lis, ansServer, client := answerServerFixture(t)
+	_, _, _, _, _, _, _ = offerCh, AnswerCh, iceToAnsCh, recvCloseIceToAnsCh, lis, ansServer, client
 	// when
 	// send a offer
 	res := &proto.OfferResponse{}
@@ -78,7 +80,7 @@ func TestAnswerServer(t *testing.T) {
 	// sending answer
 	sig = make(chan *struct{}, 1)
 	go func() {
-		_, err := client.SendAnswer(context.Background(), &proto.ReplyToAnswererRequest{
+		_, err := client.SendAnswer(context.Background(), &proto.ReplyToRequest{
 			AnswererId: "answerer_id",
 			Body:       `{"answer": "valid JSON"}`,
 		})
@@ -105,7 +107,7 @@ func TestAnswerServer(t *testing.T) {
 		cli, err := client.SendIceCandidate(ctx)
 		assert.NoError(t, err)
 		for {
-			err := cli.Send(&proto.ReplyToAnswererRequest{
+			err := cli.Send(&proto.ReplyToRequest{
 				AnswererId: "answerer_id",
 				Body:       `{"ice": "valid JSON"}`,
 			})
@@ -120,17 +122,17 @@ func TestAnswerServer(t *testing.T) {
 	}()
 
 	// sending two ice candidates
-	iceCh <- IcePacket{
+	iceToAnsCh <- IcePacket{
 		answererID:   "answerer_id",
 		iceCandidate: `{"ice": "valid JSON 1"}`,
 	}
-	iceCh <- IcePacket{
+	iceToAnsCh <- IcePacket{
 		answererID:   "answerer_id",
 		iceCandidate: `{"ice": "valid JSON 2"}`,
 	}
 
 	// TODO
-	// recvCloseIceCh <- "answerer_id"
+	// recvCloseIceToAnsCh <- "answerer_id"
 
 	sig <- &struct{}{}
 

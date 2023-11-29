@@ -122,13 +122,13 @@ func CreateOfferAndAnswerAPI(t *testing.T) (proto.YAMRPOffererClient, proto.YAMR
 	ansAPI.EXPECT().SendAnswer(
 		gomock.Any(),
 		gomock.Any(),
-	).Do(func(ctx context.Context, req *proto.ReplyToAnswererRequest, opts ...interface{}) {
+	).Do(func(ctx context.Context, req *proto.ReplyToRequest, opts ...interface{}) {
 		go func() { answerChan <- req.Body }()
 	}).Return(&proto.AnswerResponse{}, nil).AnyTimes()
 	streamRet := mock_proto.NewMockYAMRPAnswerer_SendIceCandidateClient(ctrlAns)
 	streamRet.EXPECT().Send(
 		gomock.Any(),
-	).Do(func(v *proto.ReplyToAnswererRequest) {
+	).Do(func(v *proto.ReplyToRequest) {
 		go func() { iceCandChan <- v.Body }()
 	}).Return(nil).AnyTimes()
 	ansAPI.EXPECT().SendIceCandidate(

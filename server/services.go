@@ -22,9 +22,9 @@ import "github.com/ray1422/yamrp/proto"
 // │      │          │          │        │           │         │        │
 // │      ├─Send─────►          ├─Ice..──►           ◄─WaitFor─┤        │
 // │      │ Ice....  │          │        │           │ Ice.... │        │
-// │      │          │          ◄─Close──┤           │         │        │
-// │      │          │          │ Ice    │           │         │        │
-// │      │          │          │ Chan   │           │         │        │
+// │      │          │          ◄─Close──►           │         │        │
+// │      │─WaitFor──►          │ Ice    │           ◄─Send────│        │
+// │      │ Ice....  │          │ Chan   │           │ Ice.... │        │
 // └──────┘          └──────────┘        └───────────┘         └────────┘
 
 // YAMRPServer YAMRPServer. please see the flow chart above.

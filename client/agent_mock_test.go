@@ -15,31 +15,31 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// MockpeerConnBuilder is a mock of peerConnBuilder interface.
-type MockpeerConnBuilder struct {
+// MockPeerConnBuilder is a mock of PeerConnBuilder interface.
+type MockPeerConnBuilder struct {
 	ctrl     *gomock.Controller
-	recorder *MockpeerConnBuilderMockRecorder
+	recorder *MockPeerConnBuilderMockRecorder
 }
 
-// MockpeerConnBuilderMockRecorder is the mock recorder for MockpeerConnBuilder.
-type MockpeerConnBuilderMockRecorder struct {
-	mock *MockpeerConnBuilder
+// MockPeerConnBuilderMockRecorder is the mock recorder for MockPeerConnBuilder.
+type MockPeerConnBuilderMockRecorder struct {
+	mock *MockPeerConnBuilder
 }
 
-// NewMockpeerConnBuilder creates a new mock instance.
-func NewMockpeerConnBuilder(ctrl *gomock.Controller) *MockpeerConnBuilder {
-	mock := &MockpeerConnBuilder{ctrl: ctrl}
-	mock.recorder = &MockpeerConnBuilderMockRecorder{mock}
+// NewMockPeerConnBuilder creates a new mock instance.
+func NewMockPeerConnBuilder(ctrl *gomock.Controller) *MockPeerConnBuilder {
+	mock := &MockPeerConnBuilder{ctrl: ctrl}
+	mock.recorder = &MockPeerConnBuilderMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockpeerConnBuilder) EXPECT() *MockpeerConnBuilderMockRecorder {
+func (m *MockPeerConnBuilder) EXPECT() *MockPeerConnBuilderMockRecorder {
 	return m.recorder
 }
 
 // NewPeerConnection mocks base method.
-func (m *MockpeerConnBuilder) NewPeerConnection(config webrtc.Configuration) (peerConnAbstract, error) {
+func (m *MockPeerConnBuilder) NewPeerConnection(config webrtc.Configuration) (peerConnAbstract, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NewPeerConnection", config)
 	ret0, _ := ret[0].(peerConnAbstract)
@@ -48,9 +48,9 @@ func (m *MockpeerConnBuilder) NewPeerConnection(config webrtc.Configuration) (pe
 }
 
 // NewPeerConnection indicates an expected call of NewPeerConnection.
-func (mr *MockpeerConnBuilderMockRecorder) NewPeerConnection(config any) *gomock.Call {
+func (mr *MockPeerConnBuilderMockRecorder) NewPeerConnection(config any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewPeerConnection", reflect.TypeOf((*MockpeerConnBuilder)(nil).NewPeerConnection), config)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewPeerConnection", reflect.TypeOf((*MockPeerConnBuilder)(nil).NewPeerConnection), config)
 }
 
 // MockpeerConnAbstract is a mock of peerConnAbstract interface.
@@ -88,6 +88,21 @@ func (m *MockpeerConnAbstract) AddICECandidate(candidate webrtc.ICECandidateInit
 func (mr *MockpeerConnAbstractMockRecorder) AddICECandidate(candidate any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddICECandidate", reflect.TypeOf((*MockpeerConnAbstract)(nil).AddICECandidate), candidate)
+}
+
+// AddTrack mocks base method.
+func (m *MockpeerConnAbstract) AddTrack(track webrtc.TrackLocal) (*webrtc.RTPSender, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddTrack", track)
+	ret0, _ := ret[0].(*webrtc.RTPSender)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AddTrack indicates an expected call of AddTrack.
+func (mr *MockpeerConnAbstractMockRecorder) AddTrack(track any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddTrack", reflect.TypeOf((*MockpeerConnAbstract)(nil).AddTrack), track)
 }
 
 // CreateAnswer mocks base method.

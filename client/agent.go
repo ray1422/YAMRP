@@ -43,6 +43,7 @@ type peerConnAbstract interface {
 	CreateDataChannel(label string, dataChannelInit *webrtc.DataChannelInit) (*webrtc.DataChannel, error)
 	OnDataChannel(func(*webrtc.DataChannel))
 	RemoteDescription() *webrtc.SessionDescription
+	AddTrack(track webrtc.TrackLocal) (*webrtc.RTPSender, error)
 }
 
 // AgentNetConn is the TCP agent.
@@ -88,13 +89,6 @@ var DefaultWebRTCConfig = webrtc.Configuration{
 				"stun:stun3.l.google.com:19302",
 				"stun:stun4.l.google.com:19302",
 			},
-		},
-		{
-			URLs: []string{
-				"turn:numb.viagenie.ca",
-			},
-			Credential: "muazkh",
-			Username:   "webrtc@live.com",
 		},
 	},
 }
@@ -155,7 +149,59 @@ func (a *AgentNetConn) initWebRTCAsAnswerer(config webrtc.Configuration) chan ut
 		return ch
 	}
 	answerID := ret.AnswererId
-
+	go func() {
+		// recv ice candidate
+		for {
+			res, err := a.ansAPI.WaitForICECandidate(context.TODO(),
+				&proto.WaitForICECandidateRequest{
+					Token: &proto.AuthToken{
+						Token: a.user.Token(),
+					},
+					AnswererId: answerID,
+				},
+			)
+			if err != nil && err != io.EOF {
+				log.Errorf("failed to receive ice candidate: %v", err)
+				return
+			}
+			timeoutCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			defer cancel()
+			for {
+				select {
+				case <-timeoutCtx.Done():
+					log.Warnf("timeout stop forwarding ice candidate")
+					return
+				case <-res.Context().Done():
+					log.Infof("ice candidate stream closed by server")
+					return
+				case ice := <-func() chan string {
+					ch := make(chan string, 1)
+					go func() {
+						r, err := res.Recv()
+						if err != nil && err != io.EOF {
+							log.Warnf("error when receiving ice candidate: %v", err)
+							return
+						}
+						if r == nil {
+							log.Warnf("ice candidate stream closed")
+							return
+						}
+						ch <- r.GetCandidate()
+					}()
+					return ch
+				}():
+					log.Debugf("add ice candidate %v", ice)
+					err := peerConn.AddICECandidate(webrtc.ICECandidateInit{
+						Candidate: ice,
+					})
+					if err != nil && err != io.EOF {
+						log.Errorf("failed to add ice candidate: %v", err)
+						return
+					}
+				}
+			}
+		}
+	}()
 	// send ice candidate
 	// send ice candidate is stream
 	iceCandidateStream, err := a.ansAPI.SendIceCandidate(context.TODO())
@@ -174,7 +220,7 @@ func (a *AgentNetConn) initWebRTCAsAnswerer(config webrtc.Configuration) chan ut
 			log.Warn("FIXME setRemoteDescription is not called yet")
 			time.Sleep(1 * time.Second)
 		}
-		err = iceCandidateStream.Send(&proto.ReplyToAnswererRequest{
+		err = iceCandidateStream.Send(&proto.ReplyToRequest{
 			Token: &proto.AuthToken{
 				Token: a.user.Token(),
 			},
@@ -197,7 +243,7 @@ func (a *AgentNetConn) initWebRTCAsAnswerer(config webrtc.Configuration) chan ut
 		return ch
 	}
 	// FIXME
-	// peerConn.CreateDataChannel("dummy", nil)
+	peerConn.CreateDataChannel("dummy_agent", nil)
 	// time.Sleep(500 * time.Millisecond)
 	// set remote description
 
@@ -219,7 +265,7 @@ func (a *AgentNetConn) initWebRTCAsAnswerer(config webrtc.Configuration) chan ut
 		return ch
 	}
 	// send answer
-	_, err = a.ansAPI.SendAnswer(context.TODO(), &proto.ReplyToAnswererRequest{
+	_, err = a.ansAPI.SendAnswer(context.TODO(), &proto.ReplyToRequest{
 		Token: &proto.AuthToken{
 			Token: a.user.Token(),
 		},

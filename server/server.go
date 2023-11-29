@@ -14,13 +14,15 @@ func Serve(lis net.Listener, opts ...grpc.ServerOption) {
 	notifyNewOfferCh := make(chan string)
 	offerCh := make(chan offering)
 	answerCh := make(chan AnsPacket, 1024)
-	iceCh := make(chan IcePacket, 1024)
-	closeIceCh := make(chan string)
+	iceToAnsCh := make(chan IcePacket, 1024)
+	iceToOfferCh := make(chan IcePacket, 1024)
+	closeIceToAnsCh := make(chan string)
 
 	authServer := NewAuthServer(newHostSig)
 	hostServer := NewHostServer(newHostSig, notifyNewOfferCh)
-	offererServer := NewOffererServer(notifyNewOfferCh, offerCh, answerCh, iceCh, closeIceCh)
-	answererServer := NewAnswererServer(offerCh, answerCh, iceCh, closeIceCh)
+	offererServer := NewOffererServer(notifyNewOfferCh, offerCh, answerCh, iceToAnsCh, closeIceToAnsCh)
+	answererServer := NewAnswererServer(offerCh, answerCh, iceToAnsCh, iceToOfferCh,
+		closeIceToAnsCh)
 
 	hostServer.Serve()
 	authServer.Serve()
