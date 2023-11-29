@@ -81,7 +81,13 @@ func NewAgent(addr string,
 var DefaultWebRTCConfig = webrtc.Configuration{
 	ICEServers: []webrtc.ICEServer{
 		{
-			URLs: []string{"stun:stun.l.google.com:19302"},
+			URLs: []string{
+				"stun.l.google.com:19302",
+				"stun1.l.google.com:19302",
+				"stun2.l.google.com:19302",
+				"stun3.l.google.com:19302",
+				"stun4.l.google.com:19302",
+			},
 		},
 	},
 }
