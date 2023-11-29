@@ -20,9 +20,8 @@ func Serve(lis net.Listener, opts ...grpc.ServerOption) {
 
 	authServer := NewAuthServer(newHostSig)
 	hostServer := NewHostServer(newHostSig, notifyNewOfferCh)
-	offererServer := NewOffererServer(notifyNewOfferCh, offerCh, answerCh, iceToAnsCh, closeIceToAnsCh)
-	answererServer := NewAnswererServer(offerCh, answerCh, iceToAnsCh, iceToOfferCh,
-		closeIceToAnsCh)
+	offererServer := NewOffererServer(notifyNewOfferCh, offerCh, answerCh, iceToAnsCh, iceToOfferCh, closeIceToAnsCh)
+	answererServer := NewAnswererServer(offerCh, answerCh, iceToAnsCh, iceToOfferCh, closeIceToAnsCh)
 
 	hostServer.Serve()
 	authServer.Serve()

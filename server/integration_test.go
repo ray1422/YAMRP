@@ -35,11 +35,13 @@ func serverFixtureExposeHost(t *testing.T) (
 	offerCh := make(chan offering)
 	answerCh := make(chan AnsPacket, 1024)
 	iceToAnsCh := make(chan IcePacket, 1024)
+
 	iceToOfferCh := make(chan IcePacket, 1024)
 	closeIceToAnsCh := make(chan string)
 	// authServer := NewAuthServer(newHostSig)
 	// hostServer = NewHostServer(newHostCh, newOfferCh)
-	offererServer := NewOffererServer(notifiedNewOfferCh, offerCh, answerCh, iceToAnsCh, closeIceToAnsCh)
+	offererServer := NewOffererServer(notifiedNewOfferCh, offerCh, answerCh, iceToAnsCh, iceToOfferCh,
+		closeIceToAnsCh)
 	answererServer := NewAnswererServer(offerCh, answerCh, iceToAnsCh, iceToOfferCh, closeIceToAnsCh)
 
 	// authServer.Serve()

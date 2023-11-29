@@ -164,12 +164,12 @@ func (a *AgentNetConn) initWebRTCAsAnswerer(config webrtc.Configuration) chan ut
 				log.Errorf("failed to receive ice candidate: %v", err)
 				return
 			}
-			timeoutCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			timeoutCtx, cancel := context.WithTimeout(context.Background(), 1000*time.Second)
 			defer cancel()
 			for {
 				select {
 				case <-timeoutCtx.Done():
-					log.Warnf("timeout stop forwarding ice candidate")
+					log.Warnf("timeout stop receiving ice candidate")
 					return
 				case <-res.Context().Done():
 					log.Infof("ice candidate stream closed by server")
@@ -178,6 +178,7 @@ func (a *AgentNetConn) initWebRTCAsAnswerer(config webrtc.Configuration) chan ut
 					ch := make(chan string, 1)
 					go func() {
 						r, err := res.Recv()
+						log.Debugf("received ice candidate %v", r)
 						if err != nil && err != io.EOF {
 							log.Warnf("error when receiving ice candidate: %v", err)
 							return

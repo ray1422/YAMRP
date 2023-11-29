@@ -133,6 +133,7 @@ func (l *ListenerNetConn) initWebRTCAsOfferer(config webrtc.Configuration) async
 		if candidate == nil {
 			return
 		}
+		log.Infof("OnIceCandidate: %v", candidate)
 		l.iceBuf <- candidate.ToJSON().Candidate
 	})
 
@@ -242,6 +243,7 @@ func (l *ListenerNetConn) initWebRTCAsOfferer(config webrtc.Configuration) async
 				log.Infof("ICE candidate stream closed by server")
 				return
 			case ice := <-l.iceBuf:
+				log.Infof("sending ICE candidate to server: %v", ice)
 				err := req.Send(&proto.ReplyToRequest{
 					Body: ice,
 					Token: &proto.AuthToken{
@@ -335,13 +337,16 @@ func (l *ListenerNetConn) initWebRTCAsOfferer(config webrtc.Configuration) async
 						alreadyEOF = true
 
 						// return err
-					} else {
+					} else if ice != nil {
 						log.Infof("adding ICE candidate: %v", ice)
 						err := l.peerConn.AddICECandidate(*ice)
 						if err != nil && err != io.EOF {
 							log.Errorf("failed to add ICE candidate: %v", err)
 							// return err
 						}
+					} else {
+						log.Infof("ICE candidate stream closed")
+						return nil
 					}
 
 				case <-timer.C:

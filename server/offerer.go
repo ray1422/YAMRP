@@ -42,8 +42,8 @@ type OffererServer struct {
 	notifyNewOfferCh chan<- string
 	offerCh          chan<- offering
 	recvAnswerCh     <-chan AnsPacket
-	iceToAnsCh       <-chan IcePacket
-	iceToOfferCh     chan<- IcePacket
+	iceToOfferCh     <-chan IcePacket
+	iceToAnswerCh    chan<- IcePacket
 	closeIceToAnsCh  chan<- string
 	// chan itself is thread safe, but the map is not. should lock before get or set.
 	//
@@ -88,7 +88,9 @@ func NewOffererServer(
 	notifyNewOfferCh chan<- string,
 	offerCh chan<- offering,
 	recvAnswerCh <-chan AnsPacket,
-	recviceToAnsCh <-chan IcePacket,
+	iceToAnsCh chan<- IcePacket,
+	iceToOfferCh <-chan IcePacket,
+
 	// closeIceToAnsCh used to notify other that the ice channel is closed. should be write in this server.
 	closeIceToAnsCh chan string,
 ) *OffererServer {
@@ -96,7 +98,8 @@ func NewOffererServer(
 		notifyNewOfferCh:   notifyNewOfferCh,
 		offerCh:            offerCh,
 		recvAnswerCh:       recvAnswerCh,
-		iceToAnsCh:         recviceToAnsCh,
+		iceToAnswerCh:      iceToAnsCh,
+		iceToOfferCh:       iceToOfferCh,
 		closeIceToAnsCh:    closeIceToAnsCh,
 		AnsID2iceToAnsChan: make(map[string]chan string),
 		AnsID2AnsChan:      make(map[string]chan string),
@@ -250,10 +253,13 @@ func (o *OffererServer) SendIceCandidate(req proto.YAMRPOfferer_SendIceCandidate
 				req, err := req.Recv()
 				if req != nil {
 					// FIXME validate the ice candidate
-					o.iceToOfferCh <- IcePacket{
+
+					log.Debugf("forwarding ice candidate to answerer %s", req.AnswererId)
+					o.iceToAnswerCh <- IcePacket{
 						answererID:   req.AnswererId,
 						iceCandidate: req.Body,
 					}
+					log.Debugf("ice candidate forwarded to answerer %s", req.AnswererId)
 				}
 				if err != nil && err != io.EOF {
 					log.Warnf("error when receiving ice candidate: %v", err)
@@ -282,7 +288,7 @@ func (o *OffererServer) Serve() error {
 func (o *OffererServer) iceCandidateRouter() {
 	for {
 		select {
-		case icePacket := <-o.iceToAnsCh:
+		case icePacket := <-o.iceToOfferCh:
 			log.Debugf("ice packet received: %s", icePacket)
 			o.RLock()
 			ch, ok := o.AnsID2iceToAnsChan[icePacket.answererID]

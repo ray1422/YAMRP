@@ -27,9 +27,12 @@ func offererServerFixture(t *testing.T) (
 	offerCh = make(chan offering)
 	answerCh = make(chan AnsPacket, 1024)
 	iceToAnsCh = make(chan IcePacket, 1024)
+	iceToOffer := make(chan IcePacket, 1024)
 	closeIceToAnsCh = make(chan string)
 	lis = mock.NewMockListener()
-	offServer = NewOffererServer(notifyNewOfferCh, offerCh, answerCh, iceToAnsCh, closeIceToAnsCh)
+	offServer = NewOffererServer(notifyNewOfferCh, offerCh, answerCh, iceToAnsCh,
+		iceToOffer,
+		closeIceToAnsCh)
 	s := grpc.NewServer()
 	proto.RegisterYAMRPOffererServer(s, offServer)
 	go offServer.Serve()
