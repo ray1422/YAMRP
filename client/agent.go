@@ -89,6 +89,13 @@ var DefaultWebRTCConfig = webrtc.Configuration{
 				"stun:stun4.l.google.com:19302",
 			},
 		},
+		{
+			URLs: []string{
+				"turn:numb.viagenie.ca",
+			},
+			Credential: "muazkh",
+			Username:   "webrtc@live.com",
+		},
 	},
 }
 

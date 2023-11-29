@@ -228,12 +228,13 @@ func (l *ListenerNetConn) initWebRTCAsOfferer(config webrtc.Configuration) async
 			connectionEstablishedSignal := make(chan struct{}, 1)
 			// TODO should use pub/sub pattern instead of overwriting the callback
 			l.peerConn.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
+				log.Infof("connection state changed to %s", state.String())
 				if state == webrtc.PeerConnectionStateConnected {
 					connectionEstablishedSignal <- struct{}{}
 				}
 			})
 			// timeout ch
-			timer := time.NewTimer(20 * time.Second)
+			timer := time.NewTimer(2000 * time.Second)
 			// TODO timeout should be configurable
 			alreadyEOF := false
 			for {
@@ -253,6 +254,7 @@ func (l *ListenerNetConn) initWebRTCAsOfferer(config webrtc.Configuration) async
 
 						// return err
 					} else {
+						log.Infof("adding ICE candidate: %v", ice)
 						l.peerConn.AddICECandidate(*ice)
 					}
 
