@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pion/webrtc/v4"
+	log "github.com/sirupsen/logrus"
 )
 
 // setRemoteDescription is /sdp
@@ -94,6 +95,7 @@ func signalCandidate(c *webrtc.ICECandidate) error {
 }
 
 func main() { // nolint:gocognit
+	log.SetLevel(log.DebugLevel)
 	// offerAddr := flag.String("offer-address", "localhost:50000", "Address that the Offer HTTP server is hosted on.")
 	// answerAddr := flag.String("answer-address", ":60000", "Address that the Answer HTTP server is hosted on.")
 	flag.Parse()
