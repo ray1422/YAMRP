@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+option go_package = "github.com/ray1422/yampr/proto";
+
+message AuthToken {
+    string token = 1;   
+}
+
+message WaitForOfferRequest {
+    AuthToken token  = 1;
+    string host_id = 2;
+}
+
+message WaitForOfferResponse {
+    string answerer_id = 1;
+    string offer = 2;
+}
+// FIXME should be ReplyToOffererRequest
+message ReplyToAnswererRequest {
+    AuthToken token  = 1;
+    string offerer_id = 2;
+    string answerer_id = 3;
+    string body = 4;
+}
+
+message AnswerResponse {
+    string answer = 1;
+}
+
+message WaitForAnswerRequest {
+    AuthToken token  = 1;
+    string answerer_id = 2;
+}
+
+message IceCandidate {
+    string candidate = 1;
+}
+
+message SendIceCandidateResponse {}
+
+
+service YAMRPAnswerer {
+    rpc WaitForOffer(WaitForOfferRequest) returns (OfferResponse) {}
+    rpc SendAnswer(ReplyToAnswererRequest) returns (AnswerResponse) {}
+    rpc SendIceCandidate(stream ReplyToAnswererRequest) returns(SendIceCandidateResponse) {}
+}
+
+
+message SendOfferRequest {
+    AuthToken token = 1;
+    string host_id = 2;
+    string offer = 3;
+}
+message OfferResponse {
+    string offerer_id = 2;
+    string answerer_id = 3;
+    string body = 4;
+}
+message WaitForAnswerResponse {
+    string answer = 1;
+}
+message WaitForICECandidateRequest {
+    AuthToken token = 1;
+    string answerer_id = 2;
+}
+
+message InitHostRequest {
+    UserLogin user_login = 1;
+}
+
+message InitHostResponse {
+    string host_id = 1;
+    AuthToken token = 2;
+    AuthToken client_secret = 3;
+}
+message Empty {}
+message UserLogin {
+    string username = 1;
+    string password = 2;
+}
+message AnswerRequest {
+    AuthToken token = 1;
+    string offerer_id = 2;
+    string answerer_id = 3;
+    string body = 4;
+}
+
+service YAMRPOfferer {
+    rpc SendOffer(SendOfferRequest) returns (OfferResponse) {}
+    rpc WaitForAnswer(WaitForAnswerRequest) returns (AnswerResponse) {}
+    rpc WaitForICECandidate(WaitForICECandidateRequest) returns (stream IceCandidate) {}
+}
+
+service Auth{
+    rpc LoginHost(InitHostRequest) returns (InitHostResponse) {}
+    rpc LoginClient(UserLogin) returns (AuthToken) {}
+}
+
+service Host {
+    rpc ListenNewOffer(WaitForOfferRequest) returns (stream Empty) {}
+}
