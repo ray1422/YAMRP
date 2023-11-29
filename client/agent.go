@@ -161,6 +161,7 @@ func (a *AgentNetConn) initWebRTCAsAnswerer(config webrtc.Configuration) chan ut
 		if c == nil {
 			return
 		}
+		log.Infof("sending ice candidate %v", c)
 		for peerConn.RemoteDescription() == nil {
 			// FIXME should queued the ice candidate
 			log.Warn("FIXME setRemoteDescription is not called yet")
