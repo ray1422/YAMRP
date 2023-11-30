@@ -69,7 +69,7 @@ func answerAPIFixture(t *testing.T, ctrl *gomock.Controller) *mock_proto.MockYAM
 	ret := mock_proto.NewMockYAMRPAnswererClient(ctrl)
 	ret.EXPECT().WaitForOffer(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(ctx context.Context, in *proto.WaitForOfferRequest, opts ...grpc.CallOption) (
-			proto.ReplyToAnswererRequest, error) {
+			proto.ReplyToRequest, error) {
 			t.Skip("TODO")
 			time.Sleep(20 * time.Second)
 			panic("TODO")

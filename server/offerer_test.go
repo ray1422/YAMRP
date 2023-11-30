@@ -16,8 +16,8 @@ func offererServerFixture(t *testing.T) (
 	notifyNewOfferCh chan string,
 	offerCh chan offering,
 	answerCh chan AnsPacket,
-	iceCh chan IcePacket,
-	closeIceCh chan string,
+	iceToAnsCh chan IcePacket,
+	closeIceToAnsCh chan string,
 	lis *mock.Listener,
 	offServer *OffererServer,
 	client proto.YAMRPOffererClient,
@@ -26,10 +26,13 @@ func offererServerFixture(t *testing.T) (
 	notifyNewOfferCh = make(chan string)
 	offerCh = make(chan offering)
 	answerCh = make(chan AnsPacket, 1024)
-	iceCh = make(chan IcePacket, 1024)
-	closeIceCh = make(chan string)
+	iceToAnsCh = make(chan IcePacket, 1024)
+	iceToOffer := make(chan IcePacket, 1024)
+	closeIceToAnsCh = make(chan string)
 	lis = mock.NewMockListener()
-	offServer = NewOffererServer(notifyNewOfferCh, offerCh, answerCh, iceCh, closeIceCh)
+	offServer = NewOffererServer(notifyNewOfferCh, offerCh, answerCh, iceToAnsCh,
+		iceToOffer,
+		closeIceToAnsCh)
 	s := grpc.NewServer()
 	proto.RegisterYAMRPOffererServer(s, offServer)
 	go offServer.Serve()
@@ -43,7 +46,7 @@ func offererServerFixture(t *testing.T) (
 	client = proto.NewYAMRPOffererClient(conn)
 
 	// return all variables
-	return notifyNewOfferCh, offerCh, answerCh, iceCh, closeIceCh, lis, offServer, client
+	return notifyNewOfferCh, offerCh, answerCh, iceToAnsCh, closeIceToAnsCh, lis, offServer, client
 }
 
 func TestOffererWhenOffer(t *testing.T) {
@@ -55,8 +58,8 @@ func TestOffererWhenOffer(t *testing.T) {
 
 	// given
 	waitingForIceCandidateAndAnswerTimeout = 1 * time.Second
-	notifyNewOfferCh, offerCh, recvAnswerCh, iceCh, closeIceCh, lis, offServer, client := offererServerFixture(t)
-	_, _, _, _, _, _, _, _ = notifyNewOfferCh, offerCh, recvAnswerCh, iceCh, closeIceCh, lis, offServer, client
+	notifyNewOfferCh, offerCh, recvAnswerCh, iceToAnsCh, closeIceToAnsCh, lis, offServer, client := offererServerFixture(t)
+	_, _, _, _, _, _, _, _ = notifyNewOfferCh, offerCh, recvAnswerCh, iceToAnsCh, closeIceToAnsCh, lis, offServer, client
 	// when
 	// send a offer
 	res := &proto.OfferResponse{}
@@ -123,12 +126,12 @@ func TestOffererWhenOffer(t *testing.T) {
 	go func() {
 		for {
 			select {
-			case iceCh <- IcePacket{
+			case iceToAnsCh <- IcePacket{
 				answererID:   res.AnswererId,
 				iceCandidate: `{"valid_JSON": "true"}`,
 			}:
 				time.Sleep(100 * time.Millisecond)
-			case <-closeIceCh:
+			case <-closeIceToAnsCh:
 				doneFlag <- true
 				return
 			}
@@ -144,9 +147,9 @@ func TestOffererWhenOffer(t *testing.T) {
 func TestSendOfferButNotTakeFromChan(t *testing.T) {
 	// given
 	sendOfferTimeout = 1 * time.Second
-	notifyNewOfferCh, offerCh, recvAnswerCh, iceCh, closeIceCh, lis, offServer, client := offererServerFixture(t)
-	_, _, _, _, _, _, _ = notifyNewOfferCh, offerCh, iceCh, closeIceCh, lis, offServer, client
-	_, _ = recvAnswerCh, iceCh
+	notifyNewOfferCh, offerCh, recvAnswerCh, iceToAnsCh, closeIceToAnsCh, lis, offServer, client := offererServerFixture(t)
+	_, _, _, _, _, _, _ = notifyNewOfferCh, offerCh, iceToAnsCh, closeIceToAnsCh, lis, offServer, client
+	_, _ = recvAnswerCh, iceToAnsCh
 	// when
 	// send a offer
 	// res := &proto.OfferResponse{}
@@ -171,9 +174,9 @@ func TestSendOfferButNotAttachIce(t *testing.T) {
 	// given
 	sendOfferTimeout = 100 * time.Second
 	waitingForIceCandidateAndAnswerTimeout = 100 * time.Millisecond
-	notifyNewOfferCh, offerCh, recvAnswerCh, iceCh, closeIceCh, lis, offServer, client := offererServerFixture(t)
-	_, _, _, _, _, _, _ = notifyNewOfferCh, offerCh, iceCh, closeIceCh, lis, offServer, client
-	_, _ = recvAnswerCh, iceCh
+	notifyNewOfferCh, offerCh, recvAnswerCh, iceToAnsCh, closeIceToAnsCh, lis, offServer, client := offererServerFixture(t)
+	_, _, _, _, _, _, _ = notifyNewOfferCh, offerCh, iceToAnsCh, closeIceToAnsCh, lis, offServer, client
+	_, _ = recvAnswerCh, iceToAnsCh
 	// when
 	// send a offer
 	// res := &proto.OfferResponse{}
@@ -205,6 +208,6 @@ func TestSendOfferButNotAttachIce(t *testing.T) {
 	<-sig
 	<-sig
 	offServer.RLock()
-	assert.Empty(t, offServer.AnsID2IceChan)
+	assert.Empty(t, offServer.AnsID2iceToAnsChan)
 	offServer.RUnlock()
 }

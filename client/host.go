@@ -48,6 +48,8 @@ func HostLogin(username string,
 	token := res.GetToken()
 	invitationToken := res.GetClientSecret()
 	fmt.Println("invitation token:", invitationToken)
+	fmt.Println("host id:", hostID)
+	fmt.Println("")
 	user := &UserData{
 		id:    hostID,
 		token: token.GetToken(),
@@ -95,7 +97,7 @@ func (h *Host) NewOfferListener() (ret async.Future[error]) {
 				log.Errorf("host %s failed to receive new offer: %v", h.hostAPI, err)
 				return
 			}
-			log.Infof("host %s received new offer", h.hostAPI)
+			log.Infof("host received new offer")
 			// fork a new agent
 			go h.StartAgent()
 			if err != nil {

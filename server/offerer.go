@@ -42,8 +42,9 @@ type OffererServer struct {
 	notifyNewOfferCh chan<- string
 	offerCh          chan<- offering
 	recvAnswerCh     <-chan AnsPacket
-	recvIceCh        <-chan IcePacket
-	closeIceCh       chan string
+	iceToOfferCh     <-chan IcePacket
+	iceToAnswerCh    chan<- IcePacket
+	closeIceToAnsCh  chan<- string
 	// chan itself is thread safe, but the map is not. should lock before get or set.
 	//
 	// the life cycle of the channel is:
@@ -52,7 +53,7 @@ type OffererServer struct {
 	//
 	// 2. deleted when the ice channel is closed or timeout
 	// FIXME should be refactored someday.
-	AnsID2IceChan map[string]chan string
+	AnsID2iceToAnsChan map[string]chan string
 
 	// chan itself is thread safe, but the map is not. should lock before get or set.
 	//
@@ -80,25 +81,28 @@ var _ proto.YAMRPOffererServer = (*OffererServer)(nil)
 //
 // offerCh used to notify OffererServer that a new offer is created.
 //
-// iceCh is receiving the ice candidate from the answerer.
+// iceToAnsCh is receiving the ice candidate from the answerer.
 //
-// closeIceCh used to notify OffererServer that the ice channel is closed.
+// closeIceToAnsCh used to notify OffererServer that the ice channel is closed.
 func NewOffererServer(
 	notifyNewOfferCh chan<- string,
 	offerCh chan<- offering,
 	recvAnswerCh <-chan AnsPacket,
-	recvIceCh <-chan IcePacket,
-	// closeIceCh used to notify other that the ice channel is closed. should be write in this server.
-	closeIceCh chan string,
+	iceToAnsCh chan<- IcePacket,
+	iceToOfferCh <-chan IcePacket,
+
+	// closeIceToAnsCh used to notify other that the ice channel is closed. should be write in this server.
+	closeIceToAnsCh chan string,
 ) *OffererServer {
 	return &OffererServer{
-		notifyNewOfferCh: notifyNewOfferCh,
-		offerCh:          offerCh,
-		recvAnswerCh:     recvAnswerCh,
-		recvIceCh:        recvIceCh,
-		closeIceCh:       closeIceCh,
-		AnsID2IceChan:    make(map[string]chan string),
-		AnsID2AnsChan:    make(map[string]chan string),
+		notifyNewOfferCh:   notifyNewOfferCh,
+		offerCh:            offerCh,
+		recvAnswerCh:       recvAnswerCh,
+		iceToAnswerCh:      iceToAnsCh,
+		iceToOfferCh:       iceToOfferCh,
+		closeIceToAnsCh:    closeIceToAnsCh,
+		AnsID2iceToAnsChan: make(map[string]chan string),
+		AnsID2AnsChan:      make(map[string]chan string),
 	}
 }
 
@@ -117,7 +121,7 @@ func (o *OffererServer) SendOffer(ctx2 context.Context, req *proto.SendOfferRequ
 	// lock self and write map
 
 	o.Lock()
-	o.AnsID2IceChan[ansID] = make(chan string)
+	o.AnsID2iceToAnsChan[ansID] = make(chan string)
 	o.AnsID2AnsChan[ansID] = make(chan string)
 	o.Unlock()
 	log.Debugf("created ice channel for %s", ansID)
@@ -134,7 +138,7 @@ func (o *OffererServer) SendOffer(ctx2 context.Context, req *proto.SendOfferRequ
 		log.Debugf("timeout cleaning up ice channel for %s", ansID)
 		log.Debugf("timeout cleaning up answer channel for %s", ansID)
 		o.Lock()
-		delete(o.AnsID2IceChan, ansID)
+		delete(o.AnsID2iceToAnsChan, ansID)
 		delete(o.AnsID2AnsChan, ansID)
 		o.Unlock()
 	}()
@@ -191,7 +195,7 @@ func (o *OffererServer) WaitForICECandidate(req *proto.WaitForICECandidateReques
 	// FIXME auth
 
 	o.RLock()
-	ch, ok := o.AnsID2IceChan[req.AnswererId]
+	ch, ok := o.AnsID2iceToAnsChan[req.AnswererId]
 	o.RUnlock()
 	if !ok {
 		log.Warnf("ice chan not found for answerID %s", req.AnswererId)
@@ -203,9 +207,9 @@ func (o *OffererServer) WaitForICECandidate(req *proto.WaitForICECandidateReques
 	ctx, cancel := context.WithTimeout(context.Background(), waitingForIceCandidateAndAnswerTimeout)
 	defer cancel()
 	defer func() {
-		o.closeIceCh <- req.AnswererId
+		o.closeIceToAnsCh <- req.AnswererId
 		o.Lock()
-		delete(o.AnsID2IceChan, req.AnswererId)
+		delete(o.AnsID2iceToAnsChan, req.AnswererId)
 		o.Unlock()
 	}()
 	for {
@@ -230,6 +234,47 @@ func (o *OffererServer) WaitForICECandidate(req *proto.WaitForICECandidateReques
 	}
 }
 
+// SendIceCandidate sends the ice candidate to the answerer.
+func (o *OffererServer) SendIceCandidate(req proto.YAMRPOfferer_SendIceCandidateServer) error {
+	// FIXME auth
+
+	for {
+		select {
+		case <-req.Context().Done():
+			log.Warnf("ice stream timeout")
+			return status.Errorf(codes.DeadlineExceeded, "timeout")
+		case <-func() chan struct{} {
+			sig := make(chan struct{})
+			go func() {
+				defer func() {
+					sig <- struct{}{}
+				}()
+
+				req, err := req.Recv()
+				if req != nil {
+					// FIXME validate the ice candidate
+
+					log.Debugf("forwarding ice candidate to answerer %s", req.AnswererId)
+					o.iceToAnswerCh <- IcePacket{
+						answererID:   req.AnswererId,
+						iceCandidate: req.Body,
+					}
+					log.Debugf("ice candidate forwarded to answerer %s", req.AnswererId)
+				}
+				if err != nil && err != io.EOF {
+					log.Warnf("error when receiving ice candidate: %v", err)
+					return
+				}
+			}()
+			return sig
+		}():
+			// FIXME listen to the close ice channel
+
+		}
+	}
+
+}
+
 // Serve blocks the current goroutine and serves the answerer server.
 func (o *OffererServer) Serve() error {
 	go o.iceCandidateRouter()
@@ -243,10 +288,10 @@ func (o *OffererServer) Serve() error {
 func (o *OffererServer) iceCandidateRouter() {
 	for {
 		select {
-		case icePacket := <-o.recvIceCh:
+		case icePacket := <-o.iceToOfferCh:
 			log.Debugf("ice packet received: %s", icePacket)
 			o.RLock()
-			ch, ok := o.AnsID2IceChan[icePacket.answererID]
+			ch, ok := o.AnsID2iceToAnsChan[icePacket.answererID]
 			o.RUnlock()
 			if !ok {
 				log.Warnf("ice channel %s not found: %v", icePacket.answererID, icePacket)

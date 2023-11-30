@@ -15,8 +15,8 @@ message WaitForOfferResponse {
     string answerer_id = 1;
     string offer = 2;
 }
-// FIXME should be ReplyToOffererRequest
-message ReplyToAnswererRequest {
+
+message ReplyToRequest {
     AuthToken token  = 1;
     string offerer_id = 2;
     string answerer_id = 3;
@@ -41,8 +41,9 @@ message SendIceCandidateResponse {}
 
 service YAMRPAnswerer {
     rpc WaitForOffer(WaitForOfferRequest) returns (OfferResponse) {}
-    rpc SendAnswer(ReplyToAnswererRequest) returns (AnswerResponse) {}
-    rpc SendIceCandidate(stream ReplyToAnswererRequest) returns(SendIceCandidateResponse) {}
+    rpc SendAnswer(ReplyToRequest) returns (AnswerResponse) {}
+    rpc SendIceCandidate(stream ReplyToRequest) returns(SendIceCandidateResponse) {}
+    rpc WaitForICECandidate(WaitForICECandidateRequest) returns (stream IceCandidate) {}
 }
 
 
@@ -88,6 +89,7 @@ message AnswerRequest {
 service YAMRPOfferer {
     rpc SendOffer(SendOfferRequest) returns (OfferResponse) {}
     rpc WaitForAnswer(WaitForAnswerRequest) returns (AnswerResponse) {}
+    rpc SendIceCandidate(stream ReplyToRequest) returns(SendIceCandidateResponse) {}
     rpc WaitForICECandidate(WaitForICECandidateRequest) returns (stream IceCandidate) {}
 }
 

@@ -42,7 +42,7 @@ func (m *MockYAMRPAnswererClient) EXPECT() *MockYAMRPAnswererClientMockRecorder 
 }
 
 // SendAnswer mocks base method.
-func (m *MockYAMRPAnswererClient) SendAnswer(ctx context.Context, in *proto.ReplyToAnswererRequest, opts ...grpc.CallOption) (*proto.AnswerResponse, error) {
+func (m *MockYAMRPAnswererClient) SendAnswer(ctx context.Context, in *proto.ReplyToRequest, opts ...grpc.CallOption) (*proto.AnswerResponse, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, in}
 	for _, a := range opts {
@@ -79,6 +79,26 @@ func (mr *MockYAMRPAnswererClientMockRecorder) SendIceCandidate(ctx any, opts ..
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendIceCandidate", reflect.TypeOf((*MockYAMRPAnswererClient)(nil).SendIceCandidate), varargs...)
+}
+
+// WaitForICECandidate mocks base method.
+func (m *MockYAMRPAnswererClient) WaitForICECandidate(ctx context.Context, in *proto.WaitForICECandidateRequest, opts ...grpc.CallOption) (proto.YAMRPAnswerer_WaitForICECandidateClient, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx, in}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "WaitForICECandidate", varargs...)
+	ret0, _ := ret[0].(proto.YAMRPAnswerer_WaitForICECandidateClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WaitForICECandidate indicates an expected call of WaitForICECandidate.
+func (mr *MockYAMRPAnswererClientMockRecorder) WaitForICECandidate(ctx, in any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx, in}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WaitForICECandidate", reflect.TypeOf((*MockYAMRPAnswererClient)(nil).WaitForICECandidate), varargs...)
 }
 
 // WaitForOffer mocks base method.
@@ -197,7 +217,7 @@ func (mr *MockYAMRPAnswerer_SendIceCandidateClientMockRecorder) RecvMsg(m any) *
 }
 
 // Send mocks base method.
-func (m *MockYAMRPAnswerer_SendIceCandidateClient) Send(arg0 *proto.ReplyToAnswererRequest) error {
+func (m *MockYAMRPAnswerer_SendIceCandidateClient) Send(arg0 *proto.ReplyToRequest) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Send", arg0)
 	ret0, _ := ret[0].(error)
@@ -238,6 +258,129 @@ func (mr *MockYAMRPAnswerer_SendIceCandidateClientMockRecorder) Trailer() *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Trailer", reflect.TypeOf((*MockYAMRPAnswerer_SendIceCandidateClient)(nil).Trailer))
 }
 
+// MockYAMRPAnswerer_WaitForICECandidateClient is a mock of YAMRPAnswerer_WaitForICECandidateClient interface.
+type MockYAMRPAnswerer_WaitForICECandidateClient struct {
+	ctrl     *gomock.Controller
+	recorder *MockYAMRPAnswerer_WaitForICECandidateClientMockRecorder
+}
+
+// MockYAMRPAnswerer_WaitForICECandidateClientMockRecorder is the mock recorder for MockYAMRPAnswerer_WaitForICECandidateClient.
+type MockYAMRPAnswerer_WaitForICECandidateClientMockRecorder struct {
+	mock *MockYAMRPAnswerer_WaitForICECandidateClient
+}
+
+// NewMockYAMRPAnswerer_WaitForICECandidateClient creates a new mock instance.
+func NewMockYAMRPAnswerer_WaitForICECandidateClient(ctrl *gomock.Controller) *MockYAMRPAnswerer_WaitForICECandidateClient {
+	mock := &MockYAMRPAnswerer_WaitForICECandidateClient{ctrl: ctrl}
+	mock.recorder = &MockYAMRPAnswerer_WaitForICECandidateClientMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockYAMRPAnswerer_WaitForICECandidateClient) EXPECT() *MockYAMRPAnswerer_WaitForICECandidateClientMockRecorder {
+	return m.recorder
+}
+
+// CloseSend mocks base method.
+func (m *MockYAMRPAnswerer_WaitForICECandidateClient) CloseSend() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CloseSend")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CloseSend indicates an expected call of CloseSend.
+func (mr *MockYAMRPAnswerer_WaitForICECandidateClientMockRecorder) CloseSend() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseSend", reflect.TypeOf((*MockYAMRPAnswerer_WaitForICECandidateClient)(nil).CloseSend))
+}
+
+// Context mocks base method.
+func (m *MockYAMRPAnswerer_WaitForICECandidateClient) Context() context.Context {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Context")
+	ret0, _ := ret[0].(context.Context)
+	return ret0
+}
+
+// Context indicates an expected call of Context.
+func (mr *MockYAMRPAnswerer_WaitForICECandidateClientMockRecorder) Context() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockYAMRPAnswerer_WaitForICECandidateClient)(nil).Context))
+}
+
+// Header mocks base method.
+func (m *MockYAMRPAnswerer_WaitForICECandidateClient) Header() (metadata.MD, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Header")
+	ret0, _ := ret[0].(metadata.MD)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Header indicates an expected call of Header.
+func (mr *MockYAMRPAnswerer_WaitForICECandidateClientMockRecorder) Header() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Header", reflect.TypeOf((*MockYAMRPAnswerer_WaitForICECandidateClient)(nil).Header))
+}
+
+// Recv mocks base method.
+func (m *MockYAMRPAnswerer_WaitForICECandidateClient) Recv() (*proto.IceCandidate, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Recv")
+	ret0, _ := ret[0].(*proto.IceCandidate)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Recv indicates an expected call of Recv.
+func (mr *MockYAMRPAnswerer_WaitForICECandidateClientMockRecorder) Recv() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Recv", reflect.TypeOf((*MockYAMRPAnswerer_WaitForICECandidateClient)(nil).Recv))
+}
+
+// RecvMsg mocks base method.
+func (m_2 *MockYAMRPAnswerer_WaitForICECandidateClient) RecvMsg(m any) error {
+	m_2.ctrl.T.Helper()
+	ret := m_2.ctrl.Call(m_2, "RecvMsg", m)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RecvMsg indicates an expected call of RecvMsg.
+func (mr *MockYAMRPAnswerer_WaitForICECandidateClientMockRecorder) RecvMsg(m any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecvMsg", reflect.TypeOf((*MockYAMRPAnswerer_WaitForICECandidateClient)(nil).RecvMsg), m)
+}
+
+// SendMsg mocks base method.
+func (m_2 *MockYAMRPAnswerer_WaitForICECandidateClient) SendMsg(m any) error {
+	m_2.ctrl.T.Helper()
+	ret := m_2.ctrl.Call(m_2, "SendMsg", m)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SendMsg indicates an expected call of SendMsg.
+func (mr *MockYAMRPAnswerer_WaitForICECandidateClientMockRecorder) SendMsg(m any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMsg", reflect.TypeOf((*MockYAMRPAnswerer_WaitForICECandidateClient)(nil).SendMsg), m)
+}
+
+// Trailer mocks base method.
+func (m *MockYAMRPAnswerer_WaitForICECandidateClient) Trailer() metadata.MD {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Trailer")
+	ret0, _ := ret[0].(metadata.MD)
+	return ret0
+}
+
+// Trailer indicates an expected call of Trailer.
+func (mr *MockYAMRPAnswerer_WaitForICECandidateClientMockRecorder) Trailer() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Trailer", reflect.TypeOf((*MockYAMRPAnswerer_WaitForICECandidateClient)(nil).Trailer))
+}
+
 // MockYAMRPAnswererServer is a mock of YAMRPAnswererServer interface.
 type MockYAMRPAnswererServer struct {
 	ctrl     *gomock.Controller
@@ -262,7 +405,7 @@ func (m *MockYAMRPAnswererServer) EXPECT() *MockYAMRPAnswererServerMockRecorder 
 }
 
 // SendAnswer mocks base method.
-func (m *MockYAMRPAnswererServer) SendAnswer(arg0 context.Context, arg1 *proto.ReplyToAnswererRequest) (*proto.AnswerResponse, error) {
+func (m *MockYAMRPAnswererServer) SendAnswer(arg0 context.Context, arg1 *proto.ReplyToRequest) (*proto.AnswerResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SendAnswer", arg0, arg1)
 	ret0, _ := ret[0].(*proto.AnswerResponse)
@@ -288,6 +431,20 @@ func (m *MockYAMRPAnswererServer) SendIceCandidate(arg0 proto.YAMRPAnswerer_Send
 func (mr *MockYAMRPAnswererServerMockRecorder) SendIceCandidate(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendIceCandidate", reflect.TypeOf((*MockYAMRPAnswererServer)(nil).SendIceCandidate), arg0)
+}
+
+// WaitForICECandidate mocks base method.
+func (m *MockYAMRPAnswererServer) WaitForICECandidate(arg0 *proto.WaitForICECandidateRequest, arg1 proto.YAMRPAnswerer_WaitForICECandidateServer) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WaitForICECandidate", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WaitForICECandidate indicates an expected call of WaitForICECandidate.
+func (mr *MockYAMRPAnswererServerMockRecorder) WaitForICECandidate(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WaitForICECandidate", reflect.TypeOf((*MockYAMRPAnswererServer)(nil).WaitForICECandidate), arg0, arg1)
 }
 
 // WaitForOffer mocks base method.
@@ -390,10 +547,10 @@ func (mr *MockYAMRPAnswerer_SendIceCandidateServerMockRecorder) Context() *gomoc
 }
 
 // Recv mocks base method.
-func (m *MockYAMRPAnswerer_SendIceCandidateServer) Recv() (*proto.ReplyToAnswererRequest, error) {
+func (m *MockYAMRPAnswerer_SendIceCandidateServer) Recv() (*proto.ReplyToRequest, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Recv")
-	ret0, _ := ret[0].(*proto.ReplyToAnswererRequest)
+	ret0, _ := ret[0].(*proto.ReplyToRequest)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -486,6 +643,125 @@ func (mr *MockYAMRPAnswerer_SendIceCandidateServerMockRecorder) SetTrailer(arg0 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTrailer", reflect.TypeOf((*MockYAMRPAnswerer_SendIceCandidateServer)(nil).SetTrailer), arg0)
 }
 
+// MockYAMRPAnswerer_WaitForICECandidateServer is a mock of YAMRPAnswerer_WaitForICECandidateServer interface.
+type MockYAMRPAnswerer_WaitForICECandidateServer struct {
+	ctrl     *gomock.Controller
+	recorder *MockYAMRPAnswerer_WaitForICECandidateServerMockRecorder
+}
+
+// MockYAMRPAnswerer_WaitForICECandidateServerMockRecorder is the mock recorder for MockYAMRPAnswerer_WaitForICECandidateServer.
+type MockYAMRPAnswerer_WaitForICECandidateServerMockRecorder struct {
+	mock *MockYAMRPAnswerer_WaitForICECandidateServer
+}
+
+// NewMockYAMRPAnswerer_WaitForICECandidateServer creates a new mock instance.
+func NewMockYAMRPAnswerer_WaitForICECandidateServer(ctrl *gomock.Controller) *MockYAMRPAnswerer_WaitForICECandidateServer {
+	mock := &MockYAMRPAnswerer_WaitForICECandidateServer{ctrl: ctrl}
+	mock.recorder = &MockYAMRPAnswerer_WaitForICECandidateServerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockYAMRPAnswerer_WaitForICECandidateServer) EXPECT() *MockYAMRPAnswerer_WaitForICECandidateServerMockRecorder {
+	return m.recorder
+}
+
+// Context mocks base method.
+func (m *MockYAMRPAnswerer_WaitForICECandidateServer) Context() context.Context {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Context")
+	ret0, _ := ret[0].(context.Context)
+	return ret0
+}
+
+// Context indicates an expected call of Context.
+func (mr *MockYAMRPAnswerer_WaitForICECandidateServerMockRecorder) Context() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockYAMRPAnswerer_WaitForICECandidateServer)(nil).Context))
+}
+
+// RecvMsg mocks base method.
+func (m_2 *MockYAMRPAnswerer_WaitForICECandidateServer) RecvMsg(m any) error {
+	m_2.ctrl.T.Helper()
+	ret := m_2.ctrl.Call(m_2, "RecvMsg", m)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RecvMsg indicates an expected call of RecvMsg.
+func (mr *MockYAMRPAnswerer_WaitForICECandidateServerMockRecorder) RecvMsg(m any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecvMsg", reflect.TypeOf((*MockYAMRPAnswerer_WaitForICECandidateServer)(nil).RecvMsg), m)
+}
+
+// Send mocks base method.
+func (m *MockYAMRPAnswerer_WaitForICECandidateServer) Send(arg0 *proto.IceCandidate) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Send", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Send indicates an expected call of Send.
+func (mr *MockYAMRPAnswerer_WaitForICECandidateServerMockRecorder) Send(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockYAMRPAnswerer_WaitForICECandidateServer)(nil).Send), arg0)
+}
+
+// SendHeader mocks base method.
+func (m *MockYAMRPAnswerer_WaitForICECandidateServer) SendHeader(arg0 metadata.MD) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SendHeader", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SendHeader indicates an expected call of SendHeader.
+func (mr *MockYAMRPAnswerer_WaitForICECandidateServerMockRecorder) SendHeader(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendHeader", reflect.TypeOf((*MockYAMRPAnswerer_WaitForICECandidateServer)(nil).SendHeader), arg0)
+}
+
+// SendMsg mocks base method.
+func (m_2 *MockYAMRPAnswerer_WaitForICECandidateServer) SendMsg(m any) error {
+	m_2.ctrl.T.Helper()
+	ret := m_2.ctrl.Call(m_2, "SendMsg", m)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SendMsg indicates an expected call of SendMsg.
+func (mr *MockYAMRPAnswerer_WaitForICECandidateServerMockRecorder) SendMsg(m any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMsg", reflect.TypeOf((*MockYAMRPAnswerer_WaitForICECandidateServer)(nil).SendMsg), m)
+}
+
+// SetHeader mocks base method.
+func (m *MockYAMRPAnswerer_WaitForICECandidateServer) SetHeader(arg0 metadata.MD) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHeader", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetHeader indicates an expected call of SetHeader.
+func (mr *MockYAMRPAnswerer_WaitForICECandidateServerMockRecorder) SetHeader(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHeader", reflect.TypeOf((*MockYAMRPAnswerer_WaitForICECandidateServer)(nil).SetHeader), arg0)
+}
+
+// SetTrailer mocks base method.
+func (m *MockYAMRPAnswerer_WaitForICECandidateServer) SetTrailer(arg0 metadata.MD) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetTrailer", arg0)
+}
+
+// SetTrailer indicates an expected call of SetTrailer.
+func (mr *MockYAMRPAnswerer_WaitForICECandidateServerMockRecorder) SetTrailer(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTrailer", reflect.TypeOf((*MockYAMRPAnswerer_WaitForICECandidateServer)(nil).SetTrailer), arg0)
+}
+
 // MockYAMRPOffererClient is a mock of YAMRPOffererClient interface.
 type MockYAMRPOffererClient struct {
 	ctrl     *gomock.Controller
@@ -507,6 +783,26 @@ func NewMockYAMRPOffererClient(ctrl *gomock.Controller) *MockYAMRPOffererClient 
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockYAMRPOffererClient) EXPECT() *MockYAMRPOffererClientMockRecorder {
 	return m.recorder
+}
+
+// SendIceCandidate mocks base method.
+func (m *MockYAMRPOffererClient) SendIceCandidate(ctx context.Context, opts ...grpc.CallOption) (proto.YAMRPOfferer_SendIceCandidateClient, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{ctx}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "SendIceCandidate", varargs...)
+	ret0, _ := ret[0].(proto.YAMRPOfferer_SendIceCandidateClient)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SendIceCandidate indicates an expected call of SendIceCandidate.
+func (mr *MockYAMRPOffererClientMockRecorder) SendIceCandidate(ctx any, opts ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{ctx}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendIceCandidate", reflect.TypeOf((*MockYAMRPOffererClient)(nil).SendIceCandidate), varargs...)
 }
 
 // SendOffer mocks base method.
@@ -567,6 +863,143 @@ func (mr *MockYAMRPOffererClientMockRecorder) WaitForICECandidate(ctx, in any, o
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{ctx, in}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WaitForICECandidate", reflect.TypeOf((*MockYAMRPOffererClient)(nil).WaitForICECandidate), varargs...)
+}
+
+// MockYAMRPOfferer_SendIceCandidateClient is a mock of YAMRPOfferer_SendIceCandidateClient interface.
+type MockYAMRPOfferer_SendIceCandidateClient struct {
+	ctrl     *gomock.Controller
+	recorder *MockYAMRPOfferer_SendIceCandidateClientMockRecorder
+}
+
+// MockYAMRPOfferer_SendIceCandidateClientMockRecorder is the mock recorder for MockYAMRPOfferer_SendIceCandidateClient.
+type MockYAMRPOfferer_SendIceCandidateClientMockRecorder struct {
+	mock *MockYAMRPOfferer_SendIceCandidateClient
+}
+
+// NewMockYAMRPOfferer_SendIceCandidateClient creates a new mock instance.
+func NewMockYAMRPOfferer_SendIceCandidateClient(ctrl *gomock.Controller) *MockYAMRPOfferer_SendIceCandidateClient {
+	mock := &MockYAMRPOfferer_SendIceCandidateClient{ctrl: ctrl}
+	mock.recorder = &MockYAMRPOfferer_SendIceCandidateClientMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockYAMRPOfferer_SendIceCandidateClient) EXPECT() *MockYAMRPOfferer_SendIceCandidateClientMockRecorder {
+	return m.recorder
+}
+
+// CloseAndRecv mocks base method.
+func (m *MockYAMRPOfferer_SendIceCandidateClient) CloseAndRecv() (*proto.SendIceCandidateResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CloseAndRecv")
+	ret0, _ := ret[0].(*proto.SendIceCandidateResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CloseAndRecv indicates an expected call of CloseAndRecv.
+func (mr *MockYAMRPOfferer_SendIceCandidateClientMockRecorder) CloseAndRecv() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseAndRecv", reflect.TypeOf((*MockYAMRPOfferer_SendIceCandidateClient)(nil).CloseAndRecv))
+}
+
+// CloseSend mocks base method.
+func (m *MockYAMRPOfferer_SendIceCandidateClient) CloseSend() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CloseSend")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CloseSend indicates an expected call of CloseSend.
+func (mr *MockYAMRPOfferer_SendIceCandidateClientMockRecorder) CloseSend() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseSend", reflect.TypeOf((*MockYAMRPOfferer_SendIceCandidateClient)(nil).CloseSend))
+}
+
+// Context mocks base method.
+func (m *MockYAMRPOfferer_SendIceCandidateClient) Context() context.Context {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Context")
+	ret0, _ := ret[0].(context.Context)
+	return ret0
+}
+
+// Context indicates an expected call of Context.
+func (mr *MockYAMRPOfferer_SendIceCandidateClientMockRecorder) Context() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockYAMRPOfferer_SendIceCandidateClient)(nil).Context))
+}
+
+// Header mocks base method.
+func (m *MockYAMRPOfferer_SendIceCandidateClient) Header() (metadata.MD, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Header")
+	ret0, _ := ret[0].(metadata.MD)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Header indicates an expected call of Header.
+func (mr *MockYAMRPOfferer_SendIceCandidateClientMockRecorder) Header() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Header", reflect.TypeOf((*MockYAMRPOfferer_SendIceCandidateClient)(nil).Header))
+}
+
+// RecvMsg mocks base method.
+func (m_2 *MockYAMRPOfferer_SendIceCandidateClient) RecvMsg(m any) error {
+	m_2.ctrl.T.Helper()
+	ret := m_2.ctrl.Call(m_2, "RecvMsg", m)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RecvMsg indicates an expected call of RecvMsg.
+func (mr *MockYAMRPOfferer_SendIceCandidateClientMockRecorder) RecvMsg(m any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecvMsg", reflect.TypeOf((*MockYAMRPOfferer_SendIceCandidateClient)(nil).RecvMsg), m)
+}
+
+// Send mocks base method.
+func (m *MockYAMRPOfferer_SendIceCandidateClient) Send(arg0 *proto.ReplyToRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Send", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Send indicates an expected call of Send.
+func (mr *MockYAMRPOfferer_SendIceCandidateClientMockRecorder) Send(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Send", reflect.TypeOf((*MockYAMRPOfferer_SendIceCandidateClient)(nil).Send), arg0)
+}
+
+// SendMsg mocks base method.
+func (m_2 *MockYAMRPOfferer_SendIceCandidateClient) SendMsg(m any) error {
+	m_2.ctrl.T.Helper()
+	ret := m_2.ctrl.Call(m_2, "SendMsg", m)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SendMsg indicates an expected call of SendMsg.
+func (mr *MockYAMRPOfferer_SendIceCandidateClientMockRecorder) SendMsg(m any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMsg", reflect.TypeOf((*MockYAMRPOfferer_SendIceCandidateClient)(nil).SendMsg), m)
+}
+
+// Trailer mocks base method.
+func (m *MockYAMRPOfferer_SendIceCandidateClient) Trailer() metadata.MD {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Trailer")
+	ret0, _ := ret[0].(metadata.MD)
+	return ret0
+}
+
+// Trailer indicates an expected call of Trailer.
+func (mr *MockYAMRPOfferer_SendIceCandidateClientMockRecorder) Trailer() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Trailer", reflect.TypeOf((*MockYAMRPOfferer_SendIceCandidateClient)(nil).Trailer))
 }
 
 // MockYAMRPOfferer_WaitForICECandidateClient is a mock of YAMRPOfferer_WaitForICECandidateClient interface.
@@ -715,6 +1148,20 @@ func (m *MockYAMRPOffererServer) EXPECT() *MockYAMRPOffererServerMockRecorder {
 	return m.recorder
 }
 
+// SendIceCandidate mocks base method.
+func (m *MockYAMRPOffererServer) SendIceCandidate(arg0 proto.YAMRPOfferer_SendIceCandidateServer) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SendIceCandidate", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SendIceCandidate indicates an expected call of SendIceCandidate.
+func (mr *MockYAMRPOffererServerMockRecorder) SendIceCandidate(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendIceCandidate", reflect.TypeOf((*MockYAMRPOffererServer)(nil).SendIceCandidate), arg0)
+}
+
 // SendOffer mocks base method.
 func (m *MockYAMRPOffererServer) SendOffer(arg0 context.Context, arg1 *proto.SendOfferRequest) (*proto.OfferResponse, error) {
 	m.ctrl.T.Helper()
@@ -804,6 +1251,140 @@ func (m *MockUnsafeYAMRPOffererServer) mustEmbedUnimplementedYAMRPOffererServer(
 func (mr *MockUnsafeYAMRPOffererServerMockRecorder) mustEmbedUnimplementedYAMRPOffererServer() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "mustEmbedUnimplementedYAMRPOffererServer", reflect.TypeOf((*MockUnsafeYAMRPOffererServer)(nil).mustEmbedUnimplementedYAMRPOffererServer))
+}
+
+// MockYAMRPOfferer_SendIceCandidateServer is a mock of YAMRPOfferer_SendIceCandidateServer interface.
+type MockYAMRPOfferer_SendIceCandidateServer struct {
+	ctrl     *gomock.Controller
+	recorder *MockYAMRPOfferer_SendIceCandidateServerMockRecorder
+}
+
+// MockYAMRPOfferer_SendIceCandidateServerMockRecorder is the mock recorder for MockYAMRPOfferer_SendIceCandidateServer.
+type MockYAMRPOfferer_SendIceCandidateServerMockRecorder struct {
+	mock *MockYAMRPOfferer_SendIceCandidateServer
+}
+
+// NewMockYAMRPOfferer_SendIceCandidateServer creates a new mock instance.
+func NewMockYAMRPOfferer_SendIceCandidateServer(ctrl *gomock.Controller) *MockYAMRPOfferer_SendIceCandidateServer {
+	mock := &MockYAMRPOfferer_SendIceCandidateServer{ctrl: ctrl}
+	mock.recorder = &MockYAMRPOfferer_SendIceCandidateServerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockYAMRPOfferer_SendIceCandidateServer) EXPECT() *MockYAMRPOfferer_SendIceCandidateServerMockRecorder {
+	return m.recorder
+}
+
+// Context mocks base method.
+func (m *MockYAMRPOfferer_SendIceCandidateServer) Context() context.Context {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Context")
+	ret0, _ := ret[0].(context.Context)
+	return ret0
+}
+
+// Context indicates an expected call of Context.
+func (mr *MockYAMRPOfferer_SendIceCandidateServerMockRecorder) Context() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockYAMRPOfferer_SendIceCandidateServer)(nil).Context))
+}
+
+// Recv mocks base method.
+func (m *MockYAMRPOfferer_SendIceCandidateServer) Recv() (*proto.ReplyToRequest, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Recv")
+	ret0, _ := ret[0].(*proto.ReplyToRequest)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Recv indicates an expected call of Recv.
+func (mr *MockYAMRPOfferer_SendIceCandidateServerMockRecorder) Recv() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Recv", reflect.TypeOf((*MockYAMRPOfferer_SendIceCandidateServer)(nil).Recv))
+}
+
+// RecvMsg mocks base method.
+func (m_2 *MockYAMRPOfferer_SendIceCandidateServer) RecvMsg(m any) error {
+	m_2.ctrl.T.Helper()
+	ret := m_2.ctrl.Call(m_2, "RecvMsg", m)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RecvMsg indicates an expected call of RecvMsg.
+func (mr *MockYAMRPOfferer_SendIceCandidateServerMockRecorder) RecvMsg(m any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecvMsg", reflect.TypeOf((*MockYAMRPOfferer_SendIceCandidateServer)(nil).RecvMsg), m)
+}
+
+// SendAndClose mocks base method.
+func (m *MockYAMRPOfferer_SendIceCandidateServer) SendAndClose(arg0 *proto.SendIceCandidateResponse) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SendAndClose", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SendAndClose indicates an expected call of SendAndClose.
+func (mr *MockYAMRPOfferer_SendIceCandidateServerMockRecorder) SendAndClose(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendAndClose", reflect.TypeOf((*MockYAMRPOfferer_SendIceCandidateServer)(nil).SendAndClose), arg0)
+}
+
+// SendHeader mocks base method.
+func (m *MockYAMRPOfferer_SendIceCandidateServer) SendHeader(arg0 metadata.MD) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SendHeader", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SendHeader indicates an expected call of SendHeader.
+func (mr *MockYAMRPOfferer_SendIceCandidateServerMockRecorder) SendHeader(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendHeader", reflect.TypeOf((*MockYAMRPOfferer_SendIceCandidateServer)(nil).SendHeader), arg0)
+}
+
+// SendMsg mocks base method.
+func (m_2 *MockYAMRPOfferer_SendIceCandidateServer) SendMsg(m any) error {
+	m_2.ctrl.T.Helper()
+	ret := m_2.ctrl.Call(m_2, "SendMsg", m)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SendMsg indicates an expected call of SendMsg.
+func (mr *MockYAMRPOfferer_SendIceCandidateServerMockRecorder) SendMsg(m any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMsg", reflect.TypeOf((*MockYAMRPOfferer_SendIceCandidateServer)(nil).SendMsg), m)
+}
+
+// SetHeader mocks base method.
+func (m *MockYAMRPOfferer_SendIceCandidateServer) SetHeader(arg0 metadata.MD) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetHeader", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetHeader indicates an expected call of SetHeader.
+func (mr *MockYAMRPOfferer_SendIceCandidateServerMockRecorder) SetHeader(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetHeader", reflect.TypeOf((*MockYAMRPOfferer_SendIceCandidateServer)(nil).SetHeader), arg0)
+}
+
+// SetTrailer mocks base method.
+func (m *MockYAMRPOfferer_SendIceCandidateServer) SetTrailer(arg0 metadata.MD) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetTrailer", arg0)
+}
+
+// SetTrailer indicates an expected call of SetTrailer.
+func (mr *MockYAMRPOfferer_SendIceCandidateServerMockRecorder) SetTrailer(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTrailer", reflect.TypeOf((*MockYAMRPOfferer_SendIceCandidateServer)(nil).SetTrailer), arg0)
 }
 
 // MockYAMRPOfferer_WaitForICECandidateServer is a mock of YAMRPOfferer_WaitForICECandidateServer interface.

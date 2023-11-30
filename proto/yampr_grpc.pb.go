@@ -23,8 +23,9 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type YAMRPAnswererClient interface {
 	WaitForOffer(ctx context.Context, in *WaitForOfferRequest, opts ...grpc.CallOption) (*OfferResponse, error)
-	SendAnswer(ctx context.Context, in *ReplyToAnswererRequest, opts ...grpc.CallOption) (*AnswerResponse, error)
+	SendAnswer(ctx context.Context, in *ReplyToRequest, opts ...grpc.CallOption) (*AnswerResponse, error)
 	SendIceCandidate(ctx context.Context, opts ...grpc.CallOption) (YAMRPAnswerer_SendIceCandidateClient, error)
+	WaitForICECandidate(ctx context.Context, in *WaitForICECandidateRequest, opts ...grpc.CallOption) (YAMRPAnswerer_WaitForICECandidateClient, error)
 }
 
 type yAMRPAnswererClient struct {
@@ -44,7 +45,7 @@ func (c *yAMRPAnswererClient) WaitForOffer(ctx context.Context, in *WaitForOffer
 	return out, nil
 }
 
-func (c *yAMRPAnswererClient) SendAnswer(ctx context.Context, in *ReplyToAnswererRequest, opts ...grpc.CallOption) (*AnswerResponse, error) {
+func (c *yAMRPAnswererClient) SendAnswer(ctx context.Context, in *ReplyToRequest, opts ...grpc.CallOption) (*AnswerResponse, error) {
 	out := new(AnswerResponse)
 	err := c.cc.Invoke(ctx, "/YAMRPAnswerer/SendAnswer", in, out, opts...)
 	if err != nil {
@@ -63,7 +64,7 @@ func (c *yAMRPAnswererClient) SendIceCandidate(ctx context.Context, opts ...grpc
 }
 
 type YAMRPAnswerer_SendIceCandidateClient interface {
-	Send(*ReplyToAnswererRequest) error
+	Send(*ReplyToRequest) error
 	CloseAndRecv() (*SendIceCandidateResponse, error)
 	grpc.ClientStream
 }
@@ -72,7 +73,7 @@ type yAMRPAnswererSendIceCandidateClient struct {
 	grpc.ClientStream
 }
 
-func (x *yAMRPAnswererSendIceCandidateClient) Send(m *ReplyToAnswererRequest) error {
+func (x *yAMRPAnswererSendIceCandidateClient) Send(m *ReplyToRequest) error {
 	return x.ClientStream.SendMsg(m)
 }
 
@@ -87,13 +88,46 @@ func (x *yAMRPAnswererSendIceCandidateClient) CloseAndRecv() (*SendIceCandidateR
 	return m, nil
 }
 
+func (c *yAMRPAnswererClient) WaitForICECandidate(ctx context.Context, in *WaitForICECandidateRequest, opts ...grpc.CallOption) (YAMRPAnswerer_WaitForICECandidateClient, error) {
+	stream, err := c.cc.NewStream(ctx, &YAMRPAnswerer_ServiceDesc.Streams[1], "/YAMRPAnswerer/WaitForICECandidate", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &yAMRPAnswererWaitForICECandidateClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type YAMRPAnswerer_WaitForICECandidateClient interface {
+	Recv() (*IceCandidate, error)
+	grpc.ClientStream
+}
+
+type yAMRPAnswererWaitForICECandidateClient struct {
+	grpc.ClientStream
+}
+
+func (x *yAMRPAnswererWaitForICECandidateClient) Recv() (*IceCandidate, error) {
+	m := new(IceCandidate)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // YAMRPAnswererServer is the server API for YAMRPAnswerer service.
 // All implementations must embed UnimplementedYAMRPAnswererServer
 // for forward compatibility
 type YAMRPAnswererServer interface {
 	WaitForOffer(context.Context, *WaitForOfferRequest) (*OfferResponse, error)
-	SendAnswer(context.Context, *ReplyToAnswererRequest) (*AnswerResponse, error)
+	SendAnswer(context.Context, *ReplyToRequest) (*AnswerResponse, error)
 	SendIceCandidate(YAMRPAnswerer_SendIceCandidateServer) error
+	WaitForICECandidate(*WaitForICECandidateRequest, YAMRPAnswerer_WaitForICECandidateServer) error
 	mustEmbedUnimplementedYAMRPAnswererServer()
 }
 
@@ -104,11 +138,14 @@ type UnimplementedYAMRPAnswererServer struct {
 func (UnimplementedYAMRPAnswererServer) WaitForOffer(context.Context, *WaitForOfferRequest) (*OfferResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method WaitForOffer not implemented")
 }
-func (UnimplementedYAMRPAnswererServer) SendAnswer(context.Context, *ReplyToAnswererRequest) (*AnswerResponse, error) {
+func (UnimplementedYAMRPAnswererServer) SendAnswer(context.Context, *ReplyToRequest) (*AnswerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendAnswer not implemented")
 }
 func (UnimplementedYAMRPAnswererServer) SendIceCandidate(YAMRPAnswerer_SendIceCandidateServer) error {
 	return status.Errorf(codes.Unimplemented, "method SendIceCandidate not implemented")
+}
+func (UnimplementedYAMRPAnswererServer) WaitForICECandidate(*WaitForICECandidateRequest, YAMRPAnswerer_WaitForICECandidateServer) error {
+	return status.Errorf(codes.Unimplemented, "method WaitForICECandidate not implemented")
 }
 func (UnimplementedYAMRPAnswererServer) mustEmbedUnimplementedYAMRPAnswererServer() {}
 
@@ -142,7 +179,7 @@ func _YAMRPAnswerer_WaitForOffer_Handler(srv interface{}, ctx context.Context, d
 }
 
 func _YAMRPAnswerer_SendAnswer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ReplyToAnswererRequest)
+	in := new(ReplyToRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -154,7 +191,7 @@ func _YAMRPAnswerer_SendAnswer_Handler(srv interface{}, ctx context.Context, dec
 		FullMethod: "/YAMRPAnswerer/SendAnswer",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(YAMRPAnswererServer).SendAnswer(ctx, req.(*ReplyToAnswererRequest))
+		return srv.(YAMRPAnswererServer).SendAnswer(ctx, req.(*ReplyToRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -165,7 +202,7 @@ func _YAMRPAnswerer_SendIceCandidate_Handler(srv interface{}, stream grpc.Server
 
 type YAMRPAnswerer_SendIceCandidateServer interface {
 	SendAndClose(*SendIceCandidateResponse) error
-	Recv() (*ReplyToAnswererRequest, error)
+	Recv() (*ReplyToRequest, error)
 	grpc.ServerStream
 }
 
@@ -177,12 +214,33 @@ func (x *yAMRPAnswererSendIceCandidateServer) SendAndClose(m *SendIceCandidateRe
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *yAMRPAnswererSendIceCandidateServer) Recv() (*ReplyToAnswererRequest, error) {
-	m := new(ReplyToAnswererRequest)
+func (x *yAMRPAnswererSendIceCandidateServer) Recv() (*ReplyToRequest, error) {
+	m := new(ReplyToRequest)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
+}
+
+func _YAMRPAnswerer_WaitForICECandidate_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WaitForICECandidateRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(YAMRPAnswererServer).WaitForICECandidate(m, &yAMRPAnswererWaitForICECandidateServer{stream})
+}
+
+type YAMRPAnswerer_WaitForICECandidateServer interface {
+	Send(*IceCandidate) error
+	grpc.ServerStream
+}
+
+type yAMRPAnswererWaitForICECandidateServer struct {
+	grpc.ServerStream
+}
+
+func (x *yAMRPAnswererWaitForICECandidateServer) Send(m *IceCandidate) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 // YAMRPAnswerer_ServiceDesc is the grpc.ServiceDesc for YAMRPAnswerer service.
@@ -207,6 +265,11 @@ var YAMRPAnswerer_ServiceDesc = grpc.ServiceDesc{
 			Handler:       _YAMRPAnswerer_SendIceCandidate_Handler,
 			ClientStreams: true,
 		},
+		{
+			StreamName:    "WaitForICECandidate",
+			Handler:       _YAMRPAnswerer_WaitForICECandidate_Handler,
+			ServerStreams: true,
+		},
 	},
 	Metadata: "proto/yampr.proto",
 }
@@ -217,6 +280,7 @@ var YAMRPAnswerer_ServiceDesc = grpc.ServiceDesc{
 type YAMRPOffererClient interface {
 	SendOffer(ctx context.Context, in *SendOfferRequest, opts ...grpc.CallOption) (*OfferResponse, error)
 	WaitForAnswer(ctx context.Context, in *WaitForAnswerRequest, opts ...grpc.CallOption) (*AnswerResponse, error)
+	SendIceCandidate(ctx context.Context, opts ...grpc.CallOption) (YAMRPOfferer_SendIceCandidateClient, error)
 	WaitForICECandidate(ctx context.Context, in *WaitForICECandidateRequest, opts ...grpc.CallOption) (YAMRPOfferer_WaitForICECandidateClient, error)
 }
 
@@ -246,8 +310,42 @@ func (c *yAMRPOffererClient) WaitForAnswer(ctx context.Context, in *WaitForAnswe
 	return out, nil
 }
 
+func (c *yAMRPOffererClient) SendIceCandidate(ctx context.Context, opts ...grpc.CallOption) (YAMRPOfferer_SendIceCandidateClient, error) {
+	stream, err := c.cc.NewStream(ctx, &YAMRPOfferer_ServiceDesc.Streams[0], "/YAMRPOfferer/SendIceCandidate", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &yAMRPOffererSendIceCandidateClient{stream}
+	return x, nil
+}
+
+type YAMRPOfferer_SendIceCandidateClient interface {
+	Send(*ReplyToRequest) error
+	CloseAndRecv() (*SendIceCandidateResponse, error)
+	grpc.ClientStream
+}
+
+type yAMRPOffererSendIceCandidateClient struct {
+	grpc.ClientStream
+}
+
+func (x *yAMRPOffererSendIceCandidateClient) Send(m *ReplyToRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *yAMRPOffererSendIceCandidateClient) CloseAndRecv() (*SendIceCandidateResponse, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(SendIceCandidateResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func (c *yAMRPOffererClient) WaitForICECandidate(ctx context.Context, in *WaitForICECandidateRequest, opts ...grpc.CallOption) (YAMRPOfferer_WaitForICECandidateClient, error) {
-	stream, err := c.cc.NewStream(ctx, &YAMRPOfferer_ServiceDesc.Streams[0], "/YAMRPOfferer/WaitForICECandidate", opts...)
+	stream, err := c.cc.NewStream(ctx, &YAMRPOfferer_ServiceDesc.Streams[1], "/YAMRPOfferer/WaitForICECandidate", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -284,6 +382,7 @@ func (x *yAMRPOffererWaitForICECandidateClient) Recv() (*IceCandidate, error) {
 type YAMRPOffererServer interface {
 	SendOffer(context.Context, *SendOfferRequest) (*OfferResponse, error)
 	WaitForAnswer(context.Context, *WaitForAnswerRequest) (*AnswerResponse, error)
+	SendIceCandidate(YAMRPOfferer_SendIceCandidateServer) error
 	WaitForICECandidate(*WaitForICECandidateRequest, YAMRPOfferer_WaitForICECandidateServer) error
 	mustEmbedUnimplementedYAMRPOffererServer()
 }
@@ -297,6 +396,9 @@ func (UnimplementedYAMRPOffererServer) SendOffer(context.Context, *SendOfferRequ
 }
 func (UnimplementedYAMRPOffererServer) WaitForAnswer(context.Context, *WaitForAnswerRequest) (*AnswerResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method WaitForAnswer not implemented")
+}
+func (UnimplementedYAMRPOffererServer) SendIceCandidate(YAMRPOfferer_SendIceCandidateServer) error {
+	return status.Errorf(codes.Unimplemented, "method SendIceCandidate not implemented")
 }
 func (UnimplementedYAMRPOffererServer) WaitForICECandidate(*WaitForICECandidateRequest, YAMRPOfferer_WaitForICECandidateServer) error {
 	return status.Errorf(codes.Unimplemented, "method WaitForICECandidate not implemented")
@@ -350,6 +452,32 @@ func _YAMRPOfferer_WaitForAnswer_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _YAMRPOfferer_SendIceCandidate_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(YAMRPOffererServer).SendIceCandidate(&yAMRPOffererSendIceCandidateServer{stream})
+}
+
+type YAMRPOfferer_SendIceCandidateServer interface {
+	SendAndClose(*SendIceCandidateResponse) error
+	Recv() (*ReplyToRequest, error)
+	grpc.ServerStream
+}
+
+type yAMRPOffererSendIceCandidateServer struct {
+	grpc.ServerStream
+}
+
+func (x *yAMRPOffererSendIceCandidateServer) SendAndClose(m *SendIceCandidateResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *yAMRPOffererSendIceCandidateServer) Recv() (*ReplyToRequest, error) {
+	m := new(ReplyToRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 func _YAMRPOfferer_WaitForICECandidate_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(WaitForICECandidateRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -388,6 +516,11 @@ var YAMRPOfferer_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "SendIceCandidate",
+			Handler:       _YAMRPOfferer_SendIceCandidate_Handler,
+			ClientStreams: true,
+		},
 		{
 			StreamName:    "WaitForICECandidate",
 			Handler:       _YAMRPOfferer_WaitForICECandidate_Handler,
