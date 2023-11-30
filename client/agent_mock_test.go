@@ -90,21 +90,6 @@ func (mr *MockpeerConnAbstractMockRecorder) AddICECandidate(candidate any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddICECandidate", reflect.TypeOf((*MockpeerConnAbstract)(nil).AddICECandidate), candidate)
 }
 
-// AddTrack mocks base method.
-func (m *MockpeerConnAbstract) AddTrack(track webrtc.TrackLocal) (*webrtc.RTPSender, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddTrack", track)
-	ret0, _ := ret[0].(*webrtc.RTPSender)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// AddTrack indicates an expected call of AddTrack.
-func (mr *MockpeerConnAbstractMockRecorder) AddTrack(track any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddTrack", reflect.TypeOf((*MockpeerConnAbstract)(nil).AddTrack), track)
-}
-
 // CreateAnswer mocks base method.
 func (m *MockpeerConnAbstract) CreateAnswer(options *webrtc.AnswerOptions) (webrtc.SessionDescription, error) {
 	m.ctrl.T.Helper()

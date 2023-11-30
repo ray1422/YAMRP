@@ -43,7 +43,6 @@ type peerConnAbstract interface {
 	CreateDataChannel(label string, dataChannelInit *webrtc.DataChannelInit) (*webrtc.DataChannel, error)
 	OnDataChannel(func(*webrtc.DataChannel))
 	RemoteDescription() *webrtc.SessionDescription
-	AddTrack(track webrtc.TrackLocal) (*webrtc.RTPSender, error)
 }
 
 // AgentNetConn is the TCP agent.

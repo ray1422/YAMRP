@@ -160,16 +160,6 @@ func (l *ListenerNetConn) initWebRTCAsOfferer(config webrtc.Configuration) async
 	}
 	outputTracks["f"] = outputTrack
 
-	// Add this newly created track to the PeerConnection
-	if _, err = peerConn.AddTrack(outputTracks["q"]); err != nil {
-		panic(err)
-	}
-	if _, err = peerConn.AddTrack(outputTracks["h"]); err != nil {
-		panic(err)
-	}
-	if _, err = peerConn.AddTrack(outputTracks["f"]); err != nil {
-		panic(err)
-	}
 	peerConn.CreateDataChannel("dummy", nil)
 
 	time.Sleep(1 * time.Second)
