@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // REQUIRED is the value of the flag that is required.
@@ -83,7 +85,9 @@ func main() {
 	// where host is the host mode and client is the client mode.
 	// parse host or client and than pass to the corresponding function.
 
-	// space bwteen log params
+	// log debug
+	log.SetLevel(log.DebugLevel)
+	log.Debug("debug mode")
 	if len(os.Args) < 2 {
 		flag.Usage()
 		os.Exit(1)

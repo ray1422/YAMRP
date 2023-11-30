@@ -48,6 +48,8 @@ func HostLogin(username string,
 	token := res.GetToken()
 	invitationToken := res.GetClientSecret()
 	fmt.Println("invitation token:", invitationToken)
+	fmt.Println("host id:", hostID)
+	fmt.Println("")
 	user := &UserData{
 		id:    hostID,
 		token: token.GetToken(),
