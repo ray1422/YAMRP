@@ -66,12 +66,12 @@ func NewListener(bindAddr string,
 	return ret, nil
 }
 
-// Login is the login function.
-func (l *ListenerNetConn) Login() error {
-	// FIXME TODO
-	panic("not implemented")
-	return nil
-}
+// // Login is the login function.
+// func (l *ListenerNetConn) Login() error {
+// 	// FIXME TODO
+// 	panic("not implemented")
+// 	return nil
+// }
 
 // BindListener is the internal BindListener function
 func (l *ListenerNetConn) BindListener(listen net.Listener) error {
@@ -104,7 +104,8 @@ func (l *ListenerNetConn) BindListener(listen net.Listener) error {
 
 // startProxy starts a proxy. life cycle of a proxy starts from here,
 // and ends on l.cleanupProxy.
-func (l *ListenerNetConn) startProxy(proxyID string, conn net.Conn, dataChannel *webrtc.DataChannel) (
+func (l *ListenerNetConn) startProxy(proxyID string, conn net.Conn,
+	dataChannel DataChannelAbstract) (
 	closed async.Future[error]) {
 	closed = async.NewFuture[error]()
 	eolSig := make(chan error, 1)
@@ -113,6 +114,7 @@ func (l *ListenerNetConn) startProxy(proxyID string, conn net.Conn, dataChannel 
 	l.proxiesMutex.Lock()
 	l.proxies[proxy.id] = &proxy
 	l.proxiesMutex.Unlock()
+
 	dataChannel.OnClose(func() {
 		l.cleanupProxy(proxyID)
 	})
@@ -404,8 +406,7 @@ func (l *ListenerNetConn) initWebRTCAsOfferer(config webrtc.Configuration) async
 func (l *ListenerNetConn) setupWebRTC(config webrtc.Configuration) async.Future[error] {
 	ch := async.AwaitUnordered[error](
 		l.initWebRTCAsOfferer(config),
-		// TODO should be init as answerer as well
-		// async.Ret(async.Await(l.initWebRTCAsOfferer(config))),
+		// may support other NAT passing methods in the future
 	)
 
 	for {

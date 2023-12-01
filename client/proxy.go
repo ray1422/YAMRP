@@ -14,19 +14,8 @@ import (
 
 var errProxyStooping = errors.New("proxy is stopping")
 
-// DataChannelAbstract is the abstraction of the data channel.
-type DataChannelAbstract interface {
-	OnOpen(func())
-	Close() error
-	Send([]byte) error
-	OnMessage(func(webrtc.DataChannelMessage))
-}
-
-var _ DataChannelAbstract = &webrtc.DataChannel{}
-
 // Proxy is the proxy of the listener. a proxy will create a Proxy for each connection.
 type Proxy struct {
-	peerConn    peerConnAbstract
 	conn        net.Conn
 	dataChannel DataChannelAbstract // *webrtc.DataChannel
 	writingBuf  chan []byte
