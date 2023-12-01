@@ -2,6 +2,8 @@ package client
 
 import (
 	"fmt"
+	"io"
+	"sync"
 	"testing"
 	"time"
 
@@ -10,9 +12,13 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
+// MockConn is the mock of net.Conn.
+
+var connCloseMutex = sync.Mutex{}
+var connClosedCnt = 0
+
 func TestProxy(t *testing.T) {
 	// given
-
 	readySig := make(chan struct{}, 1)
 	doneSig := make(chan struct{}, 1)
 	ctrl := gomock.NewController(t)
@@ -41,7 +47,7 @@ func TestProxy(t *testing.T) {
 	conn.EXPECT().Read(gomock.Any()).DoAndReturn(func(p []byte) (n int, err error) {
 		if outgoingCnt >= len(outgoingData) {
 			time.Sleep(100 * time.Millisecond)
-			return 0, nil
+			return 0, io.EOF
 		}
 		copy(p, outgoingData[outgoingCnt])
 		fmt.Println("replying:", string(outgoingData[outgoingCnt]))
@@ -54,7 +60,12 @@ func TestProxy(t *testing.T) {
 		return len(p), nil
 	}).AnyTimes()
 
-	conn.EXPECT().Close().Return(nil).AnyTimes()
+	// close should called by listener, not proxy, so we don't mock it.
+	// conn.EXPECT().Close().Do(func() {
+	// 	connCloseMutex.Lock()
+	// 	defer connCloseMutex.Unlock()
+	// 	connClosedCnt++
+	// }).Return(nil).AnyTimes()
 
 	dataChannel := NewMockDataChannelAbstract(ctrl)
 
@@ -79,11 +90,16 @@ func TestProxy(t *testing.T) {
 		}()
 	}).Times(1)
 
-	dataChannel.EXPECT().Close().Return(nil).Times(1)
+	// on close should be handled by listener, so we don't mock it.
+
+	// dataChannel.EXPECT().Close().Do(func() {
+	// 	t.Log("data channel closed")
+	// }).Return(nil).Times(1)
 	outCnt := 0
 	conn.EXPECT().Read(gomock.Any()).DoAndReturn(func(p []byte) (n int, err error) {
 		if outCnt >= len(outgoingData) {
-			return 0, nil
+			t.Log("reach EOF")
+			return 0, io.EOF
 		}
 		copy(p, outgoingData[outCnt])
 		outCnt++
@@ -91,16 +107,14 @@ func TestProxy(t *testing.T) {
 	}).AnyTimes()
 
 	// when
-
-	lp := NewProxy("test-proxy-id", conn, dataChannel)
+	eolSig := make(chan error, 1)
+	lp := NewProxy("test-proxy-id", conn, dataChannel, eolSig)
 	readySig <- struct{}{}
-	// wait 5 seconds for the data to be sent
+
 	<-doneSig
 
 	// then
-	err := lp.Close()
-	time.Sleep(300 * time.Millisecond)
-	assert.NoError(t, err)
+	// time.Sleep(100 * time.Millisecond)
 
 	for i := 0; i < len(incomingData); i++ {
 		assert.Equal(t, incomingData[i], recv[i])
@@ -109,4 +123,16 @@ func TestProxy(t *testing.T) {
 
 	assert.Equal(t, incomingData, recv)
 	assert.Equal(t, outgoingData, send)
+
+	// test EoL
+	// when
+	// read reads io.EOF
+	// then
+	assert.Equal(t, io.EOF, <-eolSig)
+	err := lp.Close()
+
+	// time.Sleep(3000 * time.Millisecond)
+
+	assert.NoError(t, err)
+
 }

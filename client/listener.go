@@ -18,6 +18,8 @@ import (
 	"github.com/ray1422/yamrp/utils/async"
 )
 
+var proxyStopTimeout = 5 * time.Second
+
 // ListenerNetConn is on client side.
 type ListenerNetConn struct {
 	listener  net.Listener
@@ -37,7 +39,8 @@ type ListenerNetConn struct {
 	// iceBuf buffer the candidates from onICECandidate callback
 	iceBuf chan string
 
-	proxies      map[string]*Proxy
+	proxies map[string]*Proxy
+
 	proxiesMutex sync.RWMutex
 }
 
@@ -88,13 +91,61 @@ func (l *ListenerNetConn) BindListener(listen net.Listener) error {
 		dataChannel.OnOpen(func() {
 			log.Debugf("data channel %s opened", dataChannel.Label())
 			// proxy forks its own goroutine to read from the data channel when constructed
-			proxy := NewProxy(id, conn, dataChannel)
-			// generate a UUID, maps this UUID to the proxy, so that we can find the proxy by UUID
-			l.proxiesMutex.Lock()
-			l.proxies[proxy.id] = &proxy
-			l.proxiesMutex.Unlock()
+
+			l.startProxy(id, conn, dataChannel)
+			// proxy := NewProxy(id, conn, dataChannel)
+			// // generate a UUID, maps this UUID to the proxy, so that we can find the proxy by UUID
+			// l.proxiesMutex.Lock()
+			// l.proxies[proxy.id] = &proxy
+			// l.proxiesMutex.Unlock()
 		})
 	}
+}
+
+// startProxy starts a proxy. life cycle of a proxy starts from here,
+// and ends on l.cleanupProxy.
+func (l *ListenerNetConn) startProxy(proxyID string, conn net.Conn, dataChannel *webrtc.DataChannel) (
+	closed async.Future[error]) {
+	closed = async.NewFuture[error]()
+	eolSig := make(chan error, 1)
+	proxy := NewProxy(proxyID, conn, dataChannel, eolSig)
+
+	l.proxiesMutex.Lock()
+	l.proxies[proxy.id] = &proxy
+	l.proxiesMutex.Unlock()
+	dataChannel.OnClose(func() {
+		l.cleanupProxy(proxyID)
+	})
+	go func() {
+		err := <-eolSig
+		if err == nil {
+			log.Infof("proxy %s closed due to connection closed without error", proxyID)
+		} else if err == io.EOF {
+			log.Infof("proxy %s closed due to connection closed (io.EOF)", proxyID)
+		} else {
+			log.Errorf("proxy %s closed due to error: %v", proxyID, err)
+		}
+		l.cleanupProxy(proxyID)
+		// Clean up the proxies
+		log.Debugf("proxy %s has been successfully cleaned up", proxyID)
+		closed.Resolve(err)
+	}()
+
+	return
+}
+
+// cleanupProxy cleans up a proxy.
+func (l *ListenerNetConn) cleanupProxy(proxyID string) {
+	l.proxiesMutex.Lock()
+	defer l.proxiesMutex.Unlock()
+	proxy, ok := l.proxies[proxyID]
+	if !ok {
+		log.Infof("proxy %s not found, should be already cleaned up", proxyID)
+		return
+	}
+	delete(l.proxies, proxyID)
+	proxy.Close()
+
 }
 
 // Bind binds the listener.

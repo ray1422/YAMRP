@@ -20,7 +20,12 @@ type Future[T any] struct {
 	ch chan T
 }
 
-func (f *Future[T]) Await() T {
+// Ch exposes the channel of a Future for Select.
+func (f Future[T]) Ch() <-chan T {
+	return f.ch
+}
+
+func (f Future[T]) Await() T {
 	return <-f.ch
 }
 

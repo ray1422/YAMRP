@@ -101,7 +101,7 @@ func (h *Host) NewOfferListener() (ret async.Future[error]) {
 			// fork a new agent
 			go h.StartAgent()
 			if err != nil {
-				log.Errorf("host %s failed to create new agent", h.hostAPI, err)
+				log.Errorf("host %s failed to create new agent: %v", h.hostAPI, err)
 				return
 			}
 		}

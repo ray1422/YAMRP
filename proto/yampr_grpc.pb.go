@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v4.24.3
-// source: proto/yampr.proto
+// source: yampr.proto
 
 package proto
 
@@ -271,7 +271,7 @@ var YAMRPAnswerer_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "proto/yampr.proto",
+	Metadata: "yampr.proto",
 }
 
 // YAMRPOffererClient is the client API for YAMRPOfferer service.
@@ -527,7 +527,7 @@ var YAMRPOfferer_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "proto/yampr.proto",
+	Metadata: "yampr.proto",
 }
 
 // AuthClient is the client API for Auth service.
@@ -649,7 +649,7 @@ var Auth_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/yampr.proto",
+	Metadata: "yampr.proto",
 }
 
 // HostClient is the client API for Host service.
@@ -762,5 +762,5 @@ var Host_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "proto/yampr.proto",
+	Metadata: "yampr.proto",
 }

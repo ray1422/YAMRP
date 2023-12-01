@@ -285,14 +285,27 @@ func (a *AgentNetConn) onDataChannelHandler(d *webrtc.DataChannel) {
 	// create a proxy
 	// TODO: should passing dial builder
 	dial, err := net.Dial(a.network, a.addr)
+
 	if err != nil && err != io.EOF {
 		log.Errorf("failed to dial: %v", err)
 		return
 	}
-
-	proxy := NewProxy(d.Label(), dial, d)
+	eolSig := make(chan error, 1)
+	proxy := NewProxy(d.Label(), dial, d, eolSig)
 	d.OnClose(func() {
-		proxy.Close()
+		select {
+		case eolSig <- io.EOF:
+			log.Infof("received close signal from data channel, EoL signal sent")
+		default:
+			break
+		}
+
 	})
+	go func() {
+		<-eolSig
+		proxy.Close()
+		d.Close()
+		log.Infof("proxy %s successfully closed", proxy.id)
+	}()
 
 }
