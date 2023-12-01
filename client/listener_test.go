@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/ray1422/yamrp/proto"
 	"github.com/ray1422/yamrp/proto/mock_proto"
 	"github.com/ray1422/yamrp/utils/mock"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -62,7 +64,6 @@ var fixtureListenerPeerConnBuilderMock = peerConnBuilderMock{
 		go func() {
 			<-connReadySignal
 			f(webrtc.PeerConnectionStateConnected)
-
 		}()
 	},
 }
@@ -198,7 +199,11 @@ func TestNewListenerConnect(t *testing.T) {
 	// nop
 }
 
-func ProxyLifecyclePeerConnForFixture(t *testing.T, ctrl *gomock.Controller) *MockpeerConnAbstract {
+func ProxyLifecyclePeerConnForFixture(t *testing.T, ctrl *gomock.Controller,
+	onOpen <-chan struct{},
+	onMsg <-chan webrtc.DataChannelMessage,
+	onClose <-chan struct{},
+) *MockpeerConnAbstract {
 	peerConnMock := NewMockpeerConnAbstract(ctrl)
 	peerConnMock.EXPECT().OnICECandidate(gomock.Any()).DoAndReturn(func(f func(*webrtc.ICECandidate)) {
 		onIceCandidateMock(f)
@@ -214,13 +219,47 @@ func ProxyLifecyclePeerConnForFixture(t *testing.T, ctrl *gomock.Controller) *Mo
 		return nil
 	}).AnyTimes()
 	peerConnMock.EXPECT().CreateOffer(gomock.Any()).DoAndReturn(func(options *webrtc.OfferOptions) (webrtc.SessionDescription, error) {
+		t.Log("CreateOffer called")
 		return webrtc.SessionDescription{}, nil
 	}).AnyTimes()
 	peerConnMock.EXPECT().CreateAnswer(gomock.Any()).DoAndReturn(func(options *webrtc.AnswerOptions) (webrtc.SessionDescription, error) {
 		panic(("not implemented"))
 	}).AnyTimes()
-	peerConnMock.EXPECT().CreateDataChannel(gomock.Any(), gomock.Any()).DoAndReturn(func(label string, dataChannelInit *webrtc.DataChannelInit) (*webrtc.DataChannel, error) {
-		return &webrtc.DataChannel{}, nil
+	peerConnMock.EXPECT().CreateDataChannel(gomock.Any(), gomock.Any()).DoAndReturn(func(label string, dataChannelInit *webrtc.DataChannelInit) (DataChannelAbstract, error) {
+		t.Log("CreateDataChannel called")
+		ret := NewMockDataChannelAbstract(ctrl)
+		ret.EXPECT().OnOpen(gomock.Any()).DoAndReturn(func(f func()) {
+			go func() {
+				<-onOpen
+				f()
+			}()
+		}).Times(1)
+		ret.EXPECT().OnMessage(gomock.Any()).DoAndReturn(func(f func(webrtc.DataChannelMessage)) {
+			go func() {
+				for {
+					msg := <-onMsg
+					f(msg)
+				}
+			}()
+		}).Times(1)
+		dcIsClosed := false
+		ret.EXPECT().OnClose(gomock.Any()).DoAndReturn(func(f func()) {
+			go func() {
+				<-onClose
+				dcIsClosed = true
+				f()
+				t.Log("OnClose called")
+			}()
+		}).Times(1)
+
+		ret.EXPECT().Send(gomock.Any()).DoAndReturn(func(msg webrtc.DataChannelMessage) error {
+			if dcIsClosed {
+				return io.EOF
+			}
+			t.Log("DC sent", string(msg.Data))
+			return nil
+		}).AnyTimes()
+		return ret, nil
 	}).Times(1)
 	peerConnMock.EXPECT().OnConnectionStateChange(gomock.Any()).DoAndReturn(func(f func(webrtc.PeerConnectionState)) {
 		// should be called
@@ -233,22 +272,77 @@ func ProxyLifecyclePeerConnForFixture(t *testing.T, ctrl *gomock.Controller) *Mo
 
 		}()
 	}).AnyTimes()
+
 	return peerConnMock
 }
-func TestStartProxyLifecycle(t *testing.T) {
+
+// proxyLifecycleFixture sets up a listener and a proxy,
+// test open, and send, and return for testing close
+func proxyLifecycleFixture(t *testing.T) (
+	listener *ListenerNetConn,
+	conn net.Conn,
+	dcClose chan struct{},
+
+) {
 	// given
+	log.SetLevel(log.DebugLevel)
 	ctrl := gomock.NewController(t)
-	peerConnMock := ProxyLifecyclePeerConnForFixture(t, ctrl)
+	dcOpen := make(chan struct{})
+	dcMsg := make(chan webrtc.DataChannelMessage)
+	dcClose = make(chan struct{})
+	peerConnMock := ProxyLifecyclePeerConnForFixture(t, ctrl, dcOpen, dcMsg, dcClose)
 	lis := mock.NewMockListener()
-	listener := &ListenerNetConn{
-		listener: lis,
+	listener = &ListenerNetConn{
+		// listener: lis,
 		hostID:   "test_host_id",
 		peerConn: peerConnMock,
+		proxies:  make(map[string]*Proxy),
 	}
-	err := listener.Bind()
+	go listener.BindListener(lis)
+	var err error
+	// when
+	conn, err = lis.Dial("pipe", "test_addr")
 	assert.NoError(t, err)
+	assert.NotNil(t, conn)
+	// notify open data channel
+	dcOpen <- struct{}{}
+	time.Sleep(100 * time.Millisecond)
+
+	// then
+	assert.Equal(t, 1, len(listener.proxies))
 
 	// when
-	lis.Dial("pipe", "test_addr")
+	// send message
+	dcMsg <- webrtc.DataChannelMessage{
+		Data: []byte("test"),
+	}
+	// then
+	buf := make([]byte, 1024)
+	n, err := conn.Read(buf)
+	assert.NoError(t, err)
+	assert.Equal(t, "test", string(buf[:n]))
+	return listener, conn, dcClose
+}
+func TestStartProxyLifecycleClosedByLocal(t *testing.T) {
+	// given
+	listener, conn, _ := proxyLifecycleFixture(t)
+	// test that when client closes the connection, proxy should be closed
+	// when
+	conn.Close()
+	time.Sleep(100 * time.Millisecond)
+	// then
+	assert.Equal(t, 0, len(listener.proxies))
+}
 
+func TestStartProxyLifecycleClosedByRemote(t *testing.T) {
+	// given
+	listener, conn, dcOnClose := proxyLifecycleFixture(t)
+	// test that when client closes the connection, proxy should be closed
+	// when
+	dcOnClose <- struct{}{}
+	time.Sleep(100 * time.Millisecond)
+	// then
+	assert.Equal(t, 0, len(listener.proxies))
+	_, err := conn.Write([]byte("test"))
+	assert.Error(t, err)
 }

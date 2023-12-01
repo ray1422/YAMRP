@@ -73,23 +73,24 @@ func NewListener(bindAddr string,
 // 	return nil
 // }
 
-// BindListener is the internal BindListener function
+// BindListener binds with existing listener. useful for testing.
 func (l *ListenerNetConn) BindListener(listen net.Listener) error {
 	// TODO stop signal
 	for {
 		conn, err := listen.Accept()
+		log.Debugf("accepted connection from %s", conn.RemoteAddr().String())
 		if err != nil && err != io.EOF {
 			return err
 		}
 		id := uuid.New().String()
 		// create data channel
 		dataChannel, err := l.peerConn.CreateDataChannel(id, nil)
-		if err != nil && err != io.EOF {
+		if err != nil {
 			log.Errorf("failed to create data channel")
 			continue
 		}
 		dataChannel.OnOpen(func() {
-			log.Debugf("data channel %s opened", dataChannel.Label())
+			log.Debugf("data channel %s opened", id)
 			// proxy forks its own goroutine to read from the data channel when constructed
 
 			l.startProxy(id, conn, dataChannel)

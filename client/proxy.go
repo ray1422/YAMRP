@@ -73,7 +73,10 @@ func (lp *Proxy) Close() error {
 		log.Errorf("%s failed to send stop signal to writing loop", lp.id)
 		return errProxyStooping
 	}
-
+	err := lp.conn.Close()
+	if err != nil {
+		log.Infof("%s failed to close connection, probably already closed: ", lp.id)
+	}
 	log.Debugf("Proxy %s closing", lp.id)
 	select {
 	case lp.stopSigWrite <- struct{}{}:

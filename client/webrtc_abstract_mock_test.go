@@ -106,10 +106,10 @@ func (mr *MockpeerConnAbstractMockRecorder) CreateAnswer(options any) *gomock.Ca
 }
 
 // CreateDataChannel mocks base method.
-func (m *MockpeerConnAbstract) CreateDataChannel(label string, dataChannelInit *webrtc.DataChannelInit) (*webrtc.DataChannel, error) {
+func (m *MockpeerConnAbstract) CreateDataChannel(label string, dataChannelInit *webrtc.DataChannelInit) (DataChannelAbstract, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateDataChannel", label, dataChannelInit)
-	ret0, _ := ret[0].(*webrtc.DataChannel)
+	ret0, _ := ret[0].(DataChannelAbstract)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
