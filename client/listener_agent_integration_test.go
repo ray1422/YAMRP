@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"testing"
@@ -20,6 +21,7 @@ func startTestingServer(addr string) error {
 	// simple http server
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("hello world"))
+		fmt.Println("request")
 	})
 	return http.ListenAndServe(addr, nil)
 
@@ -67,6 +69,7 @@ func CreateOfferAndAnswerAPI(t *testing.T) (proto.YAMRPOffererClient, proto.YAMR
 	offerChan := make(chan string, 1)
 	answerChan := make(chan string, 1)
 	iceCandChan := make(chan string, 1024)
+	iceCandAtoOChan := make(chan string, 1024)
 	// offerAPI
 	offAPI.EXPECT().SendOffer(gomock.Any(), gomock.Any()).
 		Do(func(ctx context.Context, req *proto.SendOfferRequest, opts ...interface{}) {
@@ -92,7 +95,15 @@ func CreateOfferAndAnswerAPI(t *testing.T) (proto.YAMRPOffererClient, proto.YAMR
 				req *proto.WaitForICECandidateRequest,
 				opts ...interface{}) (proto.YAMRPOfferer_WaitForICECandidateClient, error) {
 				obj := mock_proto.NewMockYAMRPOfferer_WaitForICECandidateClient(ctrlOff)
+				closed := false
+				obj.EXPECT().CloseSend().Do(func() {
+					closed = true
+				}).AnyTimes()
+
 				obj.EXPECT().Recv().DoAndReturn(func() (*proto.IceCandidate, error) {
+					if closed {
+						return nil, io.EOF
+					}
 					v, ok := <-iceCandChan
 					if !ok {
 						return nil, io.EOF
@@ -104,6 +115,27 @@ func CreateOfferAndAnswerAPI(t *testing.T) (proto.YAMRPOffererClient, proto.YAMR
 				}).AnyTimes()
 				return obj, nil
 			}).AnyTimes()
+
+	offAPI.EXPECT().SendIceCandidate(gomock.Any(), gomock.Any()).
+		DoAndReturn(
+			func(ctx context.Context,
+				opts ...interface{}) (proto.YAMRPOfferer_SendIceCandidateClient, error) {
+				obj := mock_proto.NewMockYAMRPOfferer_SendIceCandidateClient(ctrlOff)
+				closed := false
+				obj.EXPECT().CloseSend().Do(func() {
+					// close(iceCandChan)
+					closed = true
+				}).AnyTimes()
+
+				obj.EXPECT().Send(gomock.Any()).Do(func(v *proto.ReplyToRequest) {
+					if closed {
+						return
+					}
+					go func() { iceCandAtoOChan <- v.Body }()
+				}).Return(nil).AnyTimes()
+				return obj, nil
+			}).AnyTimes()
+
 	// answerAPI
 	ansAPI.EXPECT().WaitForOffer(
 		gomock.Any(),
@@ -134,6 +166,31 @@ func CreateOfferAndAnswerAPI(t *testing.T) (proto.YAMRPOffererClient, proto.YAMR
 	ansAPI.EXPECT().SendIceCandidate(
 		gomock.Any(),
 	).Return(streamRet, nil).AnyTimes()
+
+	ansAPI.EXPECT().WaitForICECandidate(
+		gomock.Any(),
+		gomock.Any(),
+	).DoAndReturn(func(
+		ctx context.Context,
+		req *proto.WaitForICECandidateRequest,
+		opts ...interface{}) (proto.YAMRPAnswerer_WaitForICECandidateClient, error) {
+		obj := mock_proto.NewMockYAMRPAnswerer_WaitForICECandidateClient(ctrlAns)
+		obj.EXPECT().Context().Return(ctx).AnyTimes()
+		closed := false
+		obj.EXPECT().Recv().DoAndReturn(func() (*proto.IceCandidate, error) {
+			if closed {
+				return nil, io.EOF
+			}
+			v, ok := <-iceCandAtoOChan
+			if !ok {
+				return nil, io.EOF
+			}
+			return &proto.IceCandidate{
+				Candidate: v,
+			}, nil
+		}).AnyTimes()
+		return obj, nil
+	}).AnyTimes()
 
 	return offAPI, ansAPI
 }
@@ -181,6 +238,7 @@ func TestAgentListener(t *testing.T) {
 				assert.Equal(t, io.EOF, err)
 			}
 			assert.Equal(t, "hello world", string(buf[:n]))
+			fmt.Println("response")
 			assert.Equal(t, 200, r.StatusCode)
 
 		}
@@ -191,5 +249,5 @@ func TestAgentListener(t *testing.T) {
 	<-sig
 	<-sig
 	println("agent and listener connected")
-
+	time.Sleep(100 * time.Millisecond)
 }

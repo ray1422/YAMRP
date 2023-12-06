@@ -60,6 +60,7 @@ type peerConnAbstract interface {
 	CreateDataChannel(label string, dataChannelInit *webrtc.DataChannelInit) (DataChannelAbstract, error)
 	OnDataChannel(func(*webrtc.DataChannel))
 	RemoteDescription() *webrtc.SessionDescription
+	Close() error
 }
 
 // DataChannelAbstract is the abstraction of the data channel.

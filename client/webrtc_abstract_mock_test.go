@@ -90,6 +90,20 @@ func (mr *MockpeerConnAbstractMockRecorder) AddICECandidate(candidate any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddICECandidate", reflect.TypeOf((*MockpeerConnAbstract)(nil).AddICECandidate), candidate)
 }
 
+// Close mocks base method.
+func (m *MockpeerConnAbstract) Close() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Close indicates an expected call of Close.
+func (mr *MockpeerConnAbstractMockRecorder) Close() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockpeerConnAbstract)(nil).Close))
+}
+
 // CreateAnswer mocks base method.
 func (m *MockpeerConnAbstract) CreateAnswer(options *webrtc.AnswerOptions) (webrtc.SessionDescription, error) {
 	m.ctrl.T.Helper()

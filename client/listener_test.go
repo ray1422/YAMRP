@@ -71,6 +71,7 @@ var fixtureListenerPeerConnBuilderMock = peerConnBuilderMock{
 func TestNewListenerConnect(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	offAPI := mock_proto.NewMockYAMRPOffererClient(ctrl)
+
 	offAPI.EXPECT().SendOffer(gomock.Any(), gomock.Any()).Do(func(ctx context.Context, req *proto.SendOfferRequest, opts ...interface{}) {
 		assert.Equal(t, testHostID, req.HostId)
 	}).Return(&proto.OfferResponse{
@@ -91,11 +92,16 @@ func TestNewListenerConnect(t *testing.T) {
 				opts ...interface{}) (proto.YAMRPOfferer_WaitForICECandidateClient, error) {
 				// test for sending 5 times ice candidates
 				cnt := 0
+				closeSend := false
 				obj := mock_proto.NewMockYAMRPOfferer_WaitForICECandidateClient(ctrl)
 				obj.EXPECT().Context().Return(context.Background()).AnyTimes()
+				obj.EXPECT().CloseSend().DoAndReturn(func() error {
+					closeSend = true
+					return nil
+				}).AnyTimes()
 				obj.EXPECT().Recv().DoAndReturn(func() (*proto.IceCandidate, error) {
 					// fmt.Printf("recv called %d times\n", cnt)
-					if cnt == 6 {
+					if cnt == 6 || closeSend {
 						return nil, io.EOF
 					} else if cnt == 5 {
 						connReadySignal <- struct{}{}
@@ -116,9 +122,14 @@ func TestNewListenerConnect(t *testing.T) {
 				cnt := 0
 				obj := mock_proto.NewMockYAMRPOfferer_SendIceCandidateClient(ctrl)
 				obj.EXPECT().Context().Return(context.Background()).AnyTimes()
+				closeSend := false
+				obj.EXPECT().CloseSend().DoAndReturn(func() error {
+					closeSend = true
+					return nil
+				}).AnyTimes()
 				obj.EXPECT().Send(gomock.Any()).DoAndReturn(func(req *proto.ReplyToRequest) error {
 					// fmt.Printf("send called %d times\n", cnt)
-					if cnt == 6 {
+					if cnt == 6 || closeSend {
 						return io.EOF
 					}
 					cnt++
@@ -190,7 +201,9 @@ func TestNewListenerConnect(t *testing.T) {
 		result := listener.Connect(nil)
 
 		if shouldFail[i] {
-			assert.NotNil(t, <-result)
+			if !assert.NotNil(t, <-result) {
+				fmt.Println("test case", i, "failed")
+			}
 		} else {
 			assert.Nil(t, <-result)
 		}
@@ -199,12 +212,101 @@ func TestNewListenerConnect(t *testing.T) {
 	// nop
 }
 
-func ProxyLifecyclePeerConnForFixture(t *testing.T, ctrl *gomock.Controller,
+type listenerFixture struct {
+	listener        *ListenerNetConn
+	dialer          func(network string, addr string) (net.Conn, error)
+	openDataChannel chan struct{}
+	newDC           chan *mockingDataChControlSignal
+}
+
+type mockingDataChControlSignal struct {
+	onOpen  chan struct{}
+	onMsg   chan webrtc.DataChannelMessage
+	sentMsg chan []byte
+	onClose chan struct{}
+}
+
+func newListenerFixture(
+	ctrl *gomock.Controller,
+	peerConn peerConnAbstract,
+	ctx context.Context) *listenerFixture {
+	newDC := make(chan *mockingDataChControlSignal)
+	if peerConn == nil {
+		peerConnMock := NewMockpeerConnAbstract(ctrl)
+		peerConnMock.EXPECT().CreateDataChannel(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(label string, dataChannelInit *webrtc.DataChannelInit) (
+				DataChannelAbstract, error) {
+				ret := NewMockDataChannelAbstract(ctrl)
+				sigs := <-newDC
+				ret.EXPECT().OnOpen(gomock.Any()).DoAndReturn(func(f func()) {
+					go func() {
+						<-sigs.onOpen
+						f()
+					}()
+				}).Times(1)
+
+				ret.EXPECT().OnClose(gomock.Any()).DoAndReturn(func(f func()) {
+					go func() {
+						<-sigs.onClose
+						f()
+					}()
+				}).Times(1)
+
+				ret.EXPECT().OnMessage(gomock.Any()).DoAndReturn(func(f func(webrtc.DataChannelMessage)) {
+					go func() {
+						for {
+							msg := <-sigs.onMsg
+							f(msg)
+						}
+					}()
+				}).Times(1)
+
+				ret.EXPECT().Send(gomock.Any()).DoAndReturn(func(data []byte) error {
+					sigs.sentMsg <- data
+					return nil
+				}).AnyTimes()
+
+				return ret, nil
+			}).AnyTimes()
+
+		peerConn = peerConnMock
+	}
+	lis := mock.NewMockListener()
+	listener := &ListenerNetConn{
+		hostID:   "test_host_id",
+		peerConn: peerConn,
+		proxies:  make(map[string]*Proxy),
+		ctx:      ctx,
+	}
+	go listener.BindListener(lis)
+	ret := &listenerFixture{
+		openDataChannel: make(chan struct{}),
+		listener:        listener,
+		newDC:           newDC,
+		dialer:          lis.Dial,
+	}
+	return ret
+}
+
+func (lFix *listenerFixture) dataChannelCtrl() (sigs *mockingDataChControlSignal) {
+	sigs = &mockingDataChControlSignal{
+		onOpen:  make(chan struct{}),
+		onMsg:   make(chan webrtc.DataChannelMessage),
+		sentMsg: make(chan []byte),
+		onClose: make(chan struct{}),
+	}
+	lFix.newDC <- sigs
+	return
+}
+
+func ProxyLifecyclePeerConnFixture(t *testing.T, ctrl *gomock.Controller,
 	onOpen <-chan struct{},
 	onMsg <-chan webrtc.DataChannelMessage,
+	writeMsg chan<- []byte,
 	onClose <-chan struct{},
 ) *MockpeerConnAbstract {
 	peerConnMock := NewMockpeerConnAbstract(ctrl)
+
 	peerConnMock.EXPECT().OnICECandidate(gomock.Any()).DoAndReturn(func(f func(*webrtc.ICECandidate)) {
 		onIceCandidateMock(f)
 	}).AnyTimes()
@@ -225,6 +327,9 @@ func ProxyLifecyclePeerConnForFixture(t *testing.T, ctrl *gomock.Controller,
 	peerConnMock.EXPECT().CreateAnswer(gomock.Any()).DoAndReturn(func(options *webrtc.AnswerOptions) (webrtc.SessionDescription, error) {
 		panic(("not implemented"))
 	}).AnyTimes()
+
+	// Data Channel
+
 	peerConnMock.EXPECT().CreateDataChannel(gomock.Any(), gomock.Any()).DoAndReturn(func(label string, dataChannelInit *webrtc.DataChannelInit) (DataChannelAbstract, error) {
 		t.Log("CreateDataChannel called")
 		ret := NewMockDataChannelAbstract(ctrl)
@@ -242,6 +347,12 @@ func ProxyLifecyclePeerConnForFixture(t *testing.T, ctrl *gomock.Controller,
 				}
 			}()
 		}).Times(1)
+
+		ret.EXPECT().Send(gomock.Any()).DoAndReturn(func(data []byte) error {
+			writeMsg <- data
+			return nil
+		}).AnyTimes()
+
 		dcIsClosed := false
 		ret.EXPECT().OnClose(gomock.Any()).DoAndReturn(func(f func()) {
 			go func() {
@@ -263,7 +374,6 @@ func ProxyLifecyclePeerConnForFixture(t *testing.T, ctrl *gomock.Controller,
 	}).Times(1)
 	peerConnMock.EXPECT().OnConnectionStateChange(gomock.Any()).DoAndReturn(func(f func(webrtc.PeerConnectionState)) {
 		// should be called
-		// TODO impl should be call
 		fmt.Println("callback set")
 		go func() {
 			<-connReadySignal
@@ -282,21 +392,22 @@ func proxyLifecycleFixture(t *testing.T) (
 	listener *ListenerNetConn,
 	conn net.Conn,
 	dcClose chan struct{},
-
 ) {
 	// given
 	log.SetLevel(log.DebugLevel)
 	ctrl := gomock.NewController(t)
 	dcOpen := make(chan struct{})
 	dcMsg := make(chan webrtc.DataChannelMessage)
+	sentMsg := make(chan []byte)
 	dcClose = make(chan struct{})
-	peerConnMock := ProxyLifecyclePeerConnForFixture(t, ctrl, dcOpen, dcMsg, dcClose)
+	peerConnMock := ProxyLifecyclePeerConnFixture(t, ctrl, dcOpen, dcMsg, sentMsg, dcClose)
 	lis := mock.NewMockListener()
 	listener = &ListenerNetConn{
 		// listener: lis,
 		hostID:   "test_host_id",
 		peerConn: peerConnMock,
 		proxies:  make(map[string]*Proxy),
+		ctx:      context.TODO(),
 	}
 	go listener.BindListener(lis)
 	var err error
@@ -321,6 +432,13 @@ func proxyLifecycleFixture(t *testing.T) (
 	n, err := conn.Read(buf)
 	assert.NoError(t, err)
 	assert.Equal(t, "test", string(buf[:n]))
+
+	// when
+	conn.Write([]byte("test_response"))
+	// then
+	msg := <-sentMsg
+	assert.Equal(t, "test_response", string(msg))
+
 	return listener, conn, dcClose
 }
 func TestStartProxyLifecycleClosedByLocal(t *testing.T) {

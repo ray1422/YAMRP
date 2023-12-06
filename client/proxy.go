@@ -50,8 +50,8 @@ func NewProxy(id string, conn net.Conn, dataChannel DataChannelAbstract, eolSig 
 		dataChannel:  dataChannel,
 		writingBuf:   make(chan []byte, 1024),
 		EoLSig:       eolSig,
-		stopSigWrite: make(chan struct{}, 1),
-		stopSigRead:  make(chan struct{}, 1),
+		stopSigWrite: make(chan struct{}),
+		stopSigRead:  make(chan struct{}),
 		stopped:      make(chan struct{}, 1),
 	}
 	lp.dataChannel.OnMessage(func(msg webrtc.DataChannelMessage) {
@@ -137,13 +137,16 @@ func (lp *Proxy) readingLoop() {
 		// error will be return if and only if stopping it should stop the loop
 		case err := <-async.Async(func() error {
 			n, err := lp.conn.Read(readBuf)
+			if err == net.ErrClosed {
+				err = io.EOF
+			}
 			if n > 0 {
 				err := lp.dataChannel.Send(readBuf[:n])
 				if err != nil {
 					log.Errorf("%s failed to write:%v", lp.id, err)
 				}
 				return err
-			} else if err == io.EOF {
+			} else if err == io.EOF || err == io.ErrClosedPipe {
 				log.Debugf("%s connection closed by here (EOF)", lp.id)
 			} else {
 				log.Errorf("%s failed to read: %v", lp.id, err)
@@ -156,7 +159,10 @@ func (lp *Proxy) readingLoop() {
 			// is already sent by other goroutine, so we can break
 			// the loop
 			if err != nil {
-				if err != io.EOF {
+				if err == net.ErrClosed || err == io.ErrClosedPipe {
+					err = io.EOF
+				}
+				if err != io.EOF && err != io.ErrClosedPipe {
 					log.Errorf("%s failed to read: %v", lp.id, err)
 				} else {
 					log.Debugf("%s connection closed here (EOF)", lp.id)
@@ -186,11 +192,14 @@ func (lp *Proxy) writingLoop() {
 			case err := <-async.Async(func() error {
 				// data should less than or equals to TCP buffer size
 				_, err := lp.conn.Write(data)
-				if err != nil {
-					log.Errorf(lp.id, "failed to write: %v", err)
-					return err
+				if err == io.EOF || err == io.ErrClosedPipe {
+					log.Debugf("%s connection closed by client", lp.id)
+					err = io.EOF
 				}
-				return nil
+				if err != nil && err != io.EOF {
+					log.Errorf(lp.id, "failed to write: %v", err)
+				}
+				return err
 			}).Ch():
 				if err != nil && trySendEoL(lp.EoLSig, err) != nil {
 					return

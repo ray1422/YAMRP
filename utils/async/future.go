@@ -20,6 +20,20 @@ type Future[T any] struct {
 	ch chan T
 }
 
+type ValWithErr[T any] struct {
+	Val T
+	Err error
+}
+
+func AsyncWithErr[T any](f func() (T, error)) Future[ValWithErr[T]] {
+	ret := Future[ValWithErr[T]]{ch: make(chan ValWithErr[T], 1)}
+	go func() {
+		v, err := f()
+		ret.ch <- ValWithErr[T]{Val: v, Err: err}
+	}()
+	return ret
+}
+
 // Ch exposes the channel of a Future for Select.
 func (f Future[T]) Ch() <-chan T {
 	return f.ch

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -41,6 +40,8 @@ type ListenerNetConn struct {
 
 	proxies map[string]*Proxy
 
+	ctx          context.Context
+	ctxCancel    context.CancelFunc
 	proxiesMutex sync.RWMutex
 }
 
@@ -52,6 +53,7 @@ func NewListener(bindAddr string,
 	authAPI proto.AuthClient,
 	hostID string,
 ) (*ListenerNetConn, error) {
+	ctx, cancel := context.WithCancel(context.Background())
 	ret := &ListenerNetConn{
 		bindAddr:  bindAddr,
 		network:   network,
@@ -61,7 +63,9 @@ func NewListener(bindAddr string,
 		hostID:    hostID,
 		iceBuf:    make(chan string, 1024),
 
-		proxies: make(map[string]*Proxy),
+		ctxCancel: cancel,
+		ctx:       ctx,
+		proxies:   make(map[string]*Proxy),
 	}
 	return ret, nil
 }
@@ -77,29 +81,35 @@ func NewListener(bindAddr string,
 func (l *ListenerNetConn) BindListener(listen net.Listener) error {
 	// TODO stop signal
 	for {
-		conn, err := listen.Accept()
-		log.Debugf("accepted connection from %s", conn.RemoteAddr().String())
-		if err != nil && err != io.EOF {
-			return err
+		select {
+		case <-l.ctx.Done():
+			return l.ctx.Err()
+		case ret := <-async.AsyncWithErr(func() (net.Conn, error) {
+			return listen.Accept()
+		}).Ch():
+			conn, err := ret.Val, ret.Err
+			log.Debugf("accepted connection from %s", conn.RemoteAddr().String())
+			if err != nil && err != io.EOF {
+				return err
+			}
+			id := uuid.New().String()
+			// create data channel
+			dataChannel, err := l.peerConn.CreateDataChannel(id, nil)
+			if err != nil {
+				log.Errorf("failed to create data channel")
+				continue
+			}
+			dataChannel.OnOpen(func() {
+				log.Debugf("data channel %s opened", id)
+				// proxy forks its own goroutine to read from the data channel when constructed
+				l.startProxy(id, conn, dataChannel)
+				// proxy := NewProxy(id, conn, dataChannel)
+				// // generate a UUID, maps this UUID to the proxy, so that we can find the proxy by UUID
+				// l.proxiesMutex.Lock()
+				// l.proxies[proxy.id] = &proxy
+				// l.proxiesMutex.Unlock()
+			})
 		}
-		id := uuid.New().String()
-		// create data channel
-		dataChannel, err := l.peerConn.CreateDataChannel(id, nil)
-		if err != nil {
-			log.Errorf("failed to create data channel")
-			continue
-		}
-		dataChannel.OnOpen(func() {
-			log.Debugf("data channel %s opened", id)
-			// proxy forks its own goroutine to read from the data channel when constructed
-
-			l.startProxy(id, conn, dataChannel)
-			// proxy := NewProxy(id, conn, dataChannel)
-			// // generate a UUID, maps this UUID to the proxy, so that we can find the proxy by UUID
-			// l.proxiesMutex.Lock()
-			// l.proxies[proxy.id] = &proxy
-			// l.proxiesMutex.Unlock()
-		})
 	}
 }
 
@@ -110,30 +120,39 @@ func (l *ListenerNetConn) startProxy(proxyID string, conn net.Conn,
 	closed async.Future[error]) {
 	closed = async.NewFuture[error]()
 	eolSig := make(chan error, 1)
+	dataChannel.OnClose(func() {
+		l.cleanupProxy(proxyID)
+		trySendEoL(eolSig, nil)
+	})
 	proxy := NewProxy(proxyID, conn, dataChannel, eolSig)
 
 	l.proxiesMutex.Lock()
 	l.proxies[proxy.id] = &proxy
 	l.proxiesMutex.Unlock()
 
-	dataChannel.OnClose(func() {
-		l.cleanupProxy(proxyID)
-	})
 	go func() {
-		err := <-eolSig
+		var err error
+		select {
+		case errL := <-eolSig:
+			err = errL
+		case <-l.ctx.Done():
+			err = context.Canceled
+		}
 		if err == nil {
 			log.Infof("proxy %s closed due to connection closed without error", proxyID)
-		} else if err == io.EOF {
+		} else if err == io.EOF || err == io.ErrClosedPipe {
 			log.Infof("proxy %s closed due to connection closed (io.EOF)", proxyID)
+		} else if err == context.Canceled {
+			log.Infof("proxy %s closed due to context canceled", proxyID)
 		} else {
 			log.Errorf("proxy %s closed due to error: %v", proxyID, err)
 		}
 		l.cleanupProxy(proxyID)
+		dataChannel.Close()
 		// Clean up the proxies
 		log.Debugf("proxy %s has been successfully cleaned up", proxyID)
 		closed.Resolve(err)
 	}()
-
 	return
 }
 
@@ -170,65 +189,35 @@ func (l *ListenerNetConn) Connect(config *webrtc.Configuration) chan error {
 		config = &DefaultWebRTCConfig
 	}
 	go func() {
-		ch <- async.Await(l.setupWebRTC(*config))
+		select {
+		case ch <- async.Await(l.setupWebRTC(*config)):
+		case <-l.ctx.Done():
+			ch <- l.ctx.Err()
+		}
+
 	}()
 	return ch
 }
-func (l *ListenerNetConn) initWebRTCAsOfferer(config webrtc.Configuration) async.Future[error] {
-	peerConn, err := l.pcBuilder.NewPeerConnection(config)
-	if err != nil && err != io.EOF {
-		return async.Ret(err)
-	}
 
-	// TODO shouldn't set the variable directly
-	l.peerConn = peerConn
+// initAndSendOffer creates offer, returns answerID and error.
+func (l *ListenerNetConn) initAndSendOffer(peerConn peerConnAbstract) (string, error) {
 
-	peerConn.OnICECandidate(func(candidate *webrtc.ICECandidate) {
-		if candidate == nil {
-			return
-		}
-		log.Infof("OnIceCandidate: %v", candidate)
-		l.iceBuf <- candidate.ToJSON().Candidate
-	})
+	_, err := peerConn.CreateDataChannel("dummy", nil)
+	// dummy data channel doesn't matter since we are not going to use it
+	time.Sleep(100 * time.Millisecond)
 
-	// create offer
-	// FIXME
-	outputTracks := map[string]*webrtc.TrackLocalStaticRTP{}
-
-	// Create Track that we send video back to browser on
-	outputTrack, err := webrtc.NewTrackLocalStaticRTP(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeVP8}, "video_q", "pion_q")
-	if err != nil {
-		panic(err)
-	}
-	outputTracks["q"] = outputTrack
-
-	outputTrack, err = webrtc.NewTrackLocalStaticRTP(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeVP8}, "video_h", "pion_h")
-	if err != nil {
-		panic(err)
-	}
-	outputTracks["h"] = outputTrack
-
-	outputTrack, err = webrtc.NewTrackLocalStaticRTP(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeVP8}, "video_f", "pion_f")
-	if err != nil {
-		panic(err)
-	}
-	outputTracks["f"] = outputTrack
-
-	peerConn.CreateDataChannel("dummy", nil)
-
-	time.Sleep(1 * time.Second)
 	sdp, err := l.peerConn.CreateOffer(nil)
 	// set local description
 	if err != nil && err != io.EOF {
-		return async.Ret(err)
+		return "", err
 	}
 	err = l.peerConn.SetLocalDescription(sdp)
-	if err != nil && err != io.EOF {
-		return async.Ret(err)
+	if err != nil {
+		return "", err
 	}
 	payload, err := json.Marshal(sdp)
-	if err != nil && err != io.EOF {
-		return async.Ret(err)
+	if err != nil {
+		return "", err
 	}
 	log.Debugf("sending offer to %s", l.hostID)
 	// send offer to server
@@ -237,176 +226,350 @@ func (l *ListenerNetConn) initWebRTCAsOfferer(config webrtc.Configuration) async
 			Token: l.authToken,
 		},
 		Offer:  string(payload),
-		HostId: l.hostID, // TODO: get host id
+		HostId: l.hostID,
 	})
 	if err != nil && err != io.EOF {
 		log.Errorf("failed to send offer to server%v", err)
-		return async.Ret(err)
+		return "", err
 	}
 	log.Debugf("offer sent: %v", res)
+	return res.AnswererId, nil
+}
 
-	// receive ret from server
-	ret, err := l.offerAPI.WaitForAnswer(
-		context.TODO(), &proto.WaitForAnswerRequest{
+func (l *ListenerNetConn) waitForAnswer(answererID string, peerConn peerConnAbstract) async.Future[error] {
+	outerRet := async.NewFuture[error]()
+	go func() {
+		// receive ret from server
+		ret, err := l.offerAPI.WaitForAnswer(
+			context.TODO(), &proto.WaitForAnswerRequest{
+				Token: &proto.AuthToken{
+					Token: l.authToken,
+				},
+				AnswererId: answererID,
+			})
+
+		if err != nil {
+			outerRet.Resolve(err)
+			return
+		}
+
+		// set remote description
+		answerSDP := webrtc.SessionDescription{
+			Type: webrtc.SDPTypeAnswer,
+			SDP:  ret.Answer,
+		}
+		err = l.peerConn.SetRemoteDescription(answerSDP)
+		if err != nil {
+			outerRet.Resolve(err)
+			return
+		}
+		// answer set
+		outerRet.Resolve(nil)
+	}()
+	return outerRet
+
+}
+
+// exchangeICE should exchange ICE candidates until ctx is canceled,
+// usually when the connection is established or failed.
+func (l *ListenerNetConn) exchangeICE(ctx context.Context, answererID string, pendingIceCandidates chan string) error {
+	// send ICE candidates to server
+	remoteIceCh := make(chan *webrtc.ICECandidateInit, 1024)
+
+	// receive remote ICE candidates from server
+	go func(remoteIceCh chan *webrtc.ICECandidateInit) {
+		conn, err := l.offerAPI.WaitForICECandidate(ctx, &proto.WaitForICECandidateRequest{
 			Token: &proto.AuthToken{
 				Token: l.authToken,
 			},
-			AnswererId: res.AnswererId,
+			AnswererId: answererID,
 		})
-
-	if err != nil && err != io.EOF {
-		return async.Ret(err)
-	}
-
-	// set remote description
-	answerSDP := webrtc.SessionDescription{
-		Type: webrtc.SDPTypeAnswer,
-		SDP:  ret.Answer,
-	}
-	err = l.peerConn.SetRemoteDescription(answerSDP)
-	if err != nil && err != io.EOF {
-		return async.Ret(err)
-	}
-
-	// FIXME: refactor
-	// sending ICE candidates to server
-	go func() {
-		req, err := l.offerAPI.SendIceCandidate(context.TODO())
-		if err != nil && err != io.EOF {
-			log.Errorf("failed to send ICE candidate to server: %v", err)
+		if err != nil {
+			log.Errorf("failed to receive ICE candidate from server: %v", err)
 			return
 		}
-		timeoutCtx, cancel := context.WithTimeout(context.Background(), 2000*time.Second)
-		defer cancel()
-
 		for {
 			select {
-			case <-timeoutCtx.Done():
+			case <-ctx.Done():
 				return
-			case <-req.Context().Done():
-				log.Infof("ICE candidate stream closed by server")
-				return
-			case ice := <-l.iceBuf:
-				log.Infof("sending ICE candidate to server: %v", ice)
-				err := req.Send(&proto.ReplyToRequest{
-					Body: ice,
-					Token: &proto.AuthToken{
-						Token: l.authToken,
-					},
-					AnswererId: res.AnswererId,
-				})
+			default:
+				ice, err := conn.Recv()
 				if err != nil && err != io.EOF {
-					log.Errorf("failed to send ICE candidate to server: %v", err)
+					log.Errorf("failed to receive ICE candidate from server: %v", err)
 					return
 				}
 				if err == io.EOF {
 					log.Infof("ICE candidate stream closed")
 					return
 				}
-				log.Infof("ICE candidate sent")
+				iceInit := webrtc.ICECandidateInit{
+					Candidate: ice.Candidate,
+				}
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					remoteIceCh <- &iceInit
+				}
+
 			}
 		}
-	}()
-
-	// receive ICE candidates from server
-	err = async.Await(async.Async(
-		func() error {
-			// wait for ICE candidates
-			// keep receiving ICE candidates until connection established or server closed the stream
-			iceStream, err := l.offerAPI.WaitForICECandidate(context.TODO(), &proto.WaitForICECandidateRequest{
+	}(remoteIceCh)
+	client, err := l.offerAPI.SendIceCandidate(l.ctx)
+	if err != nil {
+		log.Errorf("failed to send ICE candidate to server: %v", err)
+		return err
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			close(remoteIceCh)
+			client.CloseSend()
+			return ctx.Err()
+		case ice := <-pendingIceCandidates:
+			log.Infof("sending ICE candidate to server: %v", ice)
+			err = client.Send(&proto.ReplyToRequest{
 				Token: &proto.AuthToken{
 					Token: l.authToken,
 				},
-				AnswererId: res.AnswererId,
+				AnswererId: answererID,
+				Body:       ice,
 			})
-			if err != nil && err != io.EOF {
+			if err != nil {
+				if err != io.EOF {
+					log.Errorf("failed to send ICE candidate to server: %v", err)
+					continue
+				}
+				log.Infof("ICE candidate stream closed")
+				continue
+			}
+
+		case ice := <-remoteIceCh:
+			log.Infof("adding ICE candidate: %v", ice)
+			err := l.peerConn.AddICECandidate(*ice)
+			if err != nil {
+				log.Errorf("failed to add ICE candidate: %v", err)
 				return err
 			}
-			type iceWithErr struct {
-				ice *webrtc.ICECandidateInit
-				err error
-			}
-			// recv is a helper function to receive ICE candidates asynchronously
-			recv := func(stream proto.YAMRPOfferer_WaitForICECandidateClient, alreadyEOF bool) chan iceWithErr {
-				if alreadyEOF {
-					return nil
-				}
-				ch := make(chan iceWithErr, 1)
-				go func() {
-					iceRet, err := stream.Recv()
-					if iceRet == nil || err != nil && err != io.EOF {
-						ch <- iceWithErr{
-							ice: nil,
-							err: err,
-						}
-						return
-					} else if err == io.EOF {
-						return
-					}
-					ice := webrtc.ICECandidateInit{
-						Candidate: iceRet.Candidate,
-					}
-					ch <- iceWithErr{
-						ice: &ice,
-						err: nil,
-					}
-					return
-				}()
-				return ch
-			}
-			connectionEstablishedSignal := make(chan struct{}, 1)
-			// TODO should use pub/sub pattern instead of overwriting the callback
-			l.peerConn.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
-				log.Infof("connection state changed to %s", state.String())
-				if state == webrtc.PeerConnectionStateConnected {
-					connectionEstablishedSignal <- struct{}{}
-				}
-			})
-			// timeout ch
-			timer := time.NewTimer(2000 * time.Second)
-			// TODO timeout should be configurable
-			alreadyEOF := false
-			for {
-				select {
-				case <-connectionEstablishedSignal:
-					// TODO should un-subscribe the callback
-					log.Infof("webRTC connection established")
-					return nil
-				case iceWithErr := <-recv(iceStream, alreadyEOF):
-					ice, err := iceWithErr.ice, iceWithErr.err
-					if err != nil && err != io.EOF {
-						if err != io.EOF {
-							log.Errorf("failed to receive ICE candidate from server: %v", err)
-							return err
-						}
-						alreadyEOF = true
+		}
+	}
+}
 
-						// return err
-					} else if ice != nil {
-						log.Infof("adding ICE candidate: %v", ice)
-						err := l.peerConn.AddICECandidate(*ice)
-						if err != nil && err != io.EOF {
-							log.Errorf("failed to add ICE candidate: %v", err)
-							// return err
-						}
-					} else {
-						log.Infof("ICE candidate stream closed")
-						return nil
-					}
+// initWebRTCAsOfferer refactor required
+func (l *ListenerNetConn) initWebRTCAsOfferer(config webrtc.Configuration) error {
+	ctxSetup, cancelSetup := context.WithCancelCause(l.ctx)
+	defer cancelSetup(errors.New("finished setup"))
 
-				case <-timer.C:
-					fmt.Println("timeout")
-					return errors.New("timeout")
-				}
+	peerConn, err := l.pcBuilder.NewPeerConnection(config)
+	if err != nil && err != io.EOF {
+		return err
+	}
+	connectedSig := make(chan struct{}, 1)
+	connectionFailedSig := make(chan struct{}, 1)
+	peerConn.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
+		log.Infof("connection state changed to %s", state.String())
+		if state == webrtc.PeerConnectionStateConnected {
+			log.Infof("peer connection established")
+			connectedSig <- struct{}{}
+		}
+		if state == webrtc.PeerConnectionStateFailed {
+			log.Infof("peer connection failed")
+			// l.ctxCancel()
+			connectionFailedSig <- struct{}{}
+		}
+		if state == webrtc.PeerConnectionStateDisconnected {
+			// l.ctxCancel()
+			log.Infof("connection disconnected")
+		}
+
+	})
+	// TODO shouldn't set the variable directly
+	l.peerConn = peerConn
+	pendingIceCandidates := make(chan string, 1024)
+	peerConn.OnICECandidate(func(candidate *webrtc.ICECandidate) {
+		if candidate == nil {
+			return
+		}
+		log.Infof("OnIceCandidate: %v", candidate)
+		pendingIceCandidates <- candidate.ToJSON().Candidate
+		// l.iceBuf <- candidate.ToJSON().Candidate
+	})
+	answererID, err := l.initAndSendOffer(peerConn)
+	if err != nil {
+		return err
+	}
+
+	answerErrFut := l.waitForAnswer(answererID, peerConn)
+	errICE := async.Async(func() error { return l.exchangeICE(ctxSetup, answererID, pendingIceCandidates) })
+
+	errAns := answerErrFut.Await()
+
+	if errAns != nil {
+		return errAns
+	}
+	// FIXME: refactor
+	// sending ICE candidates to server
+	// go func() {
+	// 	req, err := l.offerAPI.SendIceCandidate(l.ctx)
+	// 	if err != nil && err != io.EOF {
+	// 		log.Errorf("failed to send ICE candidate to server: %v", err)
+	// 		return
+	// 	}
+	// 	timeoutCtx, cancel := context.WithTimeout(l.ctx, 2000*time.Second)
+	// 	defer cancel()
+
+	// 	for {
+	// 		select {
+	// 		case <-timeoutCtx.Done():
+	// 			return
+	// 		case <-req.Context().Done():
+	// 			log.Infof("ICE candidate stream closed by server")
+	// 			return
+	// 		case ice := <-l.iceBuf:
+	// 			log.Infof("sending ICE candidate to server: %v", ice)
+	// 			err := req.Send(&proto.ReplyToRequest{
+	// 				Body: ice,
+	// 				Token: &proto.AuthToken{
+	// 					Token: l.authToken,
+	// 				},
+	// 				AnswererId: answererID,
+	// 			})
+	// 			if err != nil && err != io.EOF {
+	// 				log.Errorf("failed to send ICE candidate to server: %v", err)
+	// 				return
+	// 			}
+	// 			if err == io.EOF {
+	// 				log.Infof("ICE candidate stream closed")
+	// 				return
+	// 			}
+	// 			log.Infof("ICE candidate sent")
+	// 		}
+	// 	}
+	// }()
+
+	// // receive ICE candidates from server
+	// err, canceledErr := async.Async(
+	// 	func() error {
+	// 		// wait for ICE candidates
+	// 		// keep receiving ICE candidates until connection established or server closed the stream
+	// 		iceStream, err := l.offerAPI.WaitForICECandidate(context.TODO(), &proto.WaitForICECandidateRequest{
+	// 			Token: &proto.AuthToken{
+	// 				Token: l.authToken,
+	// 			},
+	// 			AnswererId: answererID,
+	// 		})
+	// 		if err != nil && err != io.EOF {
+	// 			return err
+	// 		}
+	// 		type iceWithErr struct {
+	// 			ice *webrtc.ICECandidateInit
+	// 			err error
+	// 		}
+	// 		// recv is a helper function to receive ICE candidates asynchronously
+	// 		recv := func(stream proto.YAMRPOfferer_WaitForICECandidateClient, alreadyEOF bool) chan iceWithErr {
+	// 			if alreadyEOF {
+	// 				return nil
+	// 			}
+	// 			ch := make(chan iceWithErr, 1)
+	// 			go func() {
+	// 				iceRet, err := stream.Recv()
+	// 				if iceRet == nil || err != nil && err != io.EOF {
+	// 					ch <- iceWithErr{
+	// 						ice: nil,
+	// 						err: err,
+	// 					}
+	// 					return
+	// 				} else if err == io.EOF {
+	// 					return
+	// 				}
+	// 				ice := webrtc.ICECandidateInit{
+	// 					Candidate: iceRet.Candidate,
+	// 				}
+	// 				ch <- iceWithErr{
+	// 					ice: &ice,
+	// 					err: nil,
+	// 				}
+	// 				return
+	// 			}()
+	// 			return ch
+	// 		}
+	// 		connectionEstablishedSignal := make(chan struct{}, 1)
+	// 		// TODO should use pub/sub pattern instead of overwriting the callback
+	// 		l.peerConn.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
+	// 			log.Infof("connection state changed to %s", state.String())
+	// 			if state == webrtc.PeerConnectionStateConnected {
+	// 				connectionEstablishedSignal <- struct{}{}
+	// 			}
+	// 		})
+	// 		// timeout ch
+	// 		timer := time.NewTimer(2000 * time.Second)
+	// 		// TODO timeout should be configurable
+	// 		alreadyEOF := false
+	// 		for {
+	// 			select {
+	// 			case <-l.ctx.Done():
+	// 				return errors.New("context canceled")
+	// 			case <-connectionEstablishedSignal:
+	// 				// TODO should un-subscribe the callback
+	// 				log.Infof("webRTC connection established")
+	// 				return nil
+	// 			case iceWithErr := <-recv(iceStream, alreadyEOF):
+	// 				ice, err := iceWithErr.ice, iceWithErr.err
+	// 				if err != nil && err != io.EOF {
+	// 					if err != io.EOF {
+	// 						log.Errorf("failed to receive ICE candidate from server: %v", err)
+	// 						return err
+	// 					}
+	// 					alreadyEOF = true
+
+	// 					// return err
+	// 				} else if ice != nil {
+	// 					log.Infof("adding ICE candidate: %v", ice)
+	// 					err := l.peerConn.AddICECandidate(*ice)
+	// 					if err != nil && err != io.EOF {
+	// 						log.Errorf("failed to add ICE candidate: %v", err)
+	// 						// return err
+	// 					}
+	// 				} else {
+	// 					log.Infof("ICE candidate stream closed")
+	// 					return nil
+	// 				}
+
+	// 			case <-timer.C:
+	// 				fmt.Println("timeout")
+	// 				return errors.New("timeout")
+	// 			}
+	// 		}
+	// 	},
+	// ).AwaitWithCtx(l.ctx)
+	// if canceledErr != nil {
+	// 	return async.Ret(canceledErr)
+	// }
+	for {
+		select {
+		case <-ctxSetup.Done():
+			return ctxSetup.Err()
+		case <-connectedSig:
+			log.Infof("connection established")
+			cancelSetup(errors.New("connection established"))
+			return nil
+		case <-connectionFailedSig:
+			log.Infof("connection failed")
+			cancelSetup(errors.New("connection failed"))
+			return errors.New("connection failed")
+		case err := <-errICE.Ch():
+			if err != nil {
+				return err
 			}
-		},
-	))
-	return async.Ret(err)
+			log.Infof("ICE exchange finished. connection should be established")
+
+		}
+	}
 }
 
 func (l *ListenerNetConn) setupWebRTC(config webrtc.Configuration) async.Future[error] {
 	ch := async.AwaitUnordered[error](
-		l.initWebRTCAsOfferer(config),
+		async.Async(func() error { return l.initWebRTCAsOfferer(config) }),
 		// may support other NAT passing methods in the future
 	)
 
