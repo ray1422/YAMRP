@@ -16,36 +16,6 @@ import (
 	"github.com/ray1422/yamrp/utils"
 )
 
-// NewPCBuilder creates a new peer connection builder.
-func NewPeerConnBuilder() PeerConnBuilder {
-	return peerConnBuilderImpl{}
-}
-
-// peerConnBuilder
-type peerConnBuilderImpl struct{}
-
-func (p peerConnBuilderImpl) NewPeerConnection(config webrtc.Configuration) (peerConnAbstract, error) {
-	return webrtc.NewPeerConnection(config)
-}
-
-// PeerConnBuilder is the interface for peer connection builder.
-type PeerConnBuilder interface {
-	NewPeerConnection(config webrtc.Configuration) (peerConnAbstract, error)
-}
-type peerConnAbstract interface {
-	OnICECandidate(func(*webrtc.ICECandidate))
-	AddICECandidate(candidate webrtc.ICECandidateInit) error
-	SetRemoteDescription(desc webrtc.SessionDescription) error
-	SetLocalDescription(desc webrtc.SessionDescription) error
-	CreateOffer(options *webrtc.OfferOptions) (webrtc.SessionDescription, error)
-	CreateAnswer(options *webrtc.AnswerOptions) (webrtc.SessionDescription, error)
-	OnConnectionStateChange(func(webrtc.PeerConnectionState))
-	CreateDataChannel(label string, dataChannelInit *webrtc.DataChannelInit) (*webrtc.DataChannel, error)
-	OnDataChannel(func(*webrtc.DataChannel))
-	RemoteDescription() *webrtc.SessionDescription
-	AddTrack(track webrtc.TrackLocal) (*webrtc.RTPSender, error)
-}
-
 // AgentNetConn is the TCP agent.
 type AgentNetConn struct {
 	addr string
@@ -286,14 +256,27 @@ func (a *AgentNetConn) onDataChannelHandler(d *webrtc.DataChannel) {
 	// create a proxy
 	// TODO: should passing dial builder
 	dial, err := net.Dial(a.network, a.addr)
+
 	if err != nil && err != io.EOF {
 		log.Errorf("failed to dial: %v", err)
 		return
 	}
-
-	proxy := NewProxy(d.Label(), dial, d)
+	eolSig := make(chan error, 1)
+	proxy := NewProxy(d.Label(), dial, d, eolSig)
 	d.OnClose(func() {
-		proxy.Close()
+		select {
+		case eolSig <- io.EOF:
+			log.Infof("received close signal from data channel, EoL signal sent")
+		default:
+			break
+		}
+
 	})
+	go func() {
+		<-eolSig
+		proxy.Close()
+		d.Close()
+		log.Infof("proxy %s successfully closed", proxy.id)
+	}()
 
 }

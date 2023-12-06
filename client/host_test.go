@@ -77,14 +77,14 @@ func answerAPIFixture(t *testing.T, ctrl *gomock.Controller) *mock_proto.MockYAM
 	return ret
 }
 
-func runTestHttpServer(addr string, handler http.Handler) *http.Server {
+func runTestHTTPServer(addr string, handler http.Handler) *http.Server {
 	server := &http.Server{
 		Addr:    addr,
 		Handler: handler,
 	}
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal("failed to listen and serve: %v", err)
+			log.Fatalf("failed to listen and serve: %v", err)
 		}
 	}()
 	return server
@@ -99,7 +99,7 @@ func TestHostLogin(t *testing.T) {
 
 	addr := "localhost:3000"
 	// open a temp server on addr
-	runTestHttpServer(addr, nil)
+	runTestHTTPServer(addr, nil)
 
 	host, err := HostLogin("username", "password", authAPI, hostAPI, answerAPI, addr)
 	if !assert.NoError(t, err) {
