@@ -13,6 +13,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+var waitForOfferTimeout = 10 * time.Second
+
 // AnswererServerImpl AnswererServerImpl
 type AnswererServerImpl struct {
 	proto.UnimplementedYAMRPAnswererServer
@@ -21,6 +23,7 @@ type AnswererServerImpl struct {
 	iceToOfferCh        chan<- IcePacket
 	iceToAnsCh          <-chan IcePacket
 	recvCloseIceToAnsCh <-chan string
+	hostID2waitingCh    map[string]chan offering
 
 	// FIXME make ice candidate forwarding a delicate service
 	// AnsID2iceToAnsChan chan is for waitForIceCandidate
@@ -44,30 +47,51 @@ func NewAnswererServer(
 		iceToAnsCh:          iceToAnswerCh,
 		recvCloseIceToAnsCh: recvCloseIceToAnsCh,
 		AnsID2iceToAnsChan:  make(map[string]chan string),
+		hostID2waitingCh:    make(map[string]chan offering),
 	}
 }
 
 // WaitForOffer waits for the offer from the offerer.
-func (a *AnswererServerImpl) WaitForOffer(context.Context, *proto.WaitForOfferRequest) (*proto.OfferResponse, error) {
+func (a *AnswererServerImpl) WaitForOffer(ctx context.Context, req *proto.WaitForOfferRequest) (*proto.OfferResponse, error) {
 	// take one from the channel
-	offering := <-a.recvOfferCh
+	var offer offering
+	log.Debugf("waiting for offer %s", req.HostId)
+	a.Lock()
+	log.Debugf("waiting for offer %s, lock acquired", req.HostId)
+	ch, ok := a.hostID2waitingCh[req.HostId]
+	if !ok {
+		ch = make(chan offering, 1)
+		a.hostID2waitingCh[req.HostId] = ch
+	}
+	log.Debugf("waiting for offer %s, lock released", req.HostId)
+	a.Unlock()
+	select {
+	case <-ctx.Done():
+		// deadline exceeded
+		return nil, status.Errorf(codes.DeadlineExceeded, "timeout")
+	case offer = <-ch:
+		// FIXME validate the offer
+		break
+	}
 
 	// FIXME refactor
 	a.Lock()
-	a.AnsID2iceToAnsChan[offering.answererID] = make(chan string, 1024)
+	chICE, ok := a.AnsID2iceToAnsChan[offer.answererID]
+	if !ok {
+		chICE = make(chan string, 1024)
+		a.AnsID2iceToAnsChan[offer.answererID] = chICE
+		go func() {
+			time.Sleep(waitingForIceCandidateAndAnswerTimeout)
+			a.Lock()
+			delete(a.AnsID2iceToAnsChan, offer.answererID)
+			a.Unlock()
+		}()
+	}
 	a.Unlock()
 
-	go func() {
-		time.Sleep(10 * time.Second)
-		a.Lock()
-		delete(a.AnsID2iceToAnsChan, offering.answererID)
-		a.Unlock()
-	}()
-
 	return &proto.OfferResponse{
-		OffererId:  offering.offererID,
-		AnswererId: offering.answererID,
-		Body:       offering.offer,
+		AnswererId: offer.answererID,
+		Body:       offer.offer,
 	}, nil
 
 }
@@ -169,20 +193,54 @@ func (a *AnswererServerImpl) WaitForICECandidate(req *proto.WaitForICECandidateR
 // Serve serves the server and blocks the current goroutine.
 func (a *AnswererServerImpl) Serve() error {
 	go a.iceCandidateRouter()
+	go a.offerRouter()
 	return nil
+}
+
+func (a *AnswererServerImpl) offerRouter() {
+	for {
+		select {
+		case offer := <-a.recvOfferCh:
+			log.Debugf("received offer %s", offer.hostID)
+			a.Lock()
+			ch, ok := a.hostID2waitingCh[offer.hostID]
+			if !ok {
+				log.Debugf("offer %s not found, create a new channel", offer.hostID)
+				ch = make(chan offering, 1)
+				a.hostID2waitingCh[offer.hostID] = ch
+				go func() {
+					time.Sleep(waitForOfferTimeout)
+					a.Lock()
+					delete(a.hostID2waitingCh, offer.hostID)
+					a.Unlock()
+				}()
+			} else {
+				log.Debugf("offer chan %s found", offer.hostID)
+			}
+			a.Unlock()
+			ch <- offer
+
+		}
+	}
 }
 
 func (a *AnswererServerImpl) iceCandidateRouter() {
 	for {
 		select {
 		case ice := <-a.iceToAnsCh:
-			a.RLock()
+			a.Lock()
 			ch, ok := a.AnsID2iceToAnsChan[ice.answererID]
-			a.RUnlock()
 			if !ok {
-				log.Warnf("ice chan not found for answerID %s", ice.answererID)
-				continue
+				ch = make(chan string, 1024)
+				a.AnsID2iceToAnsChan[ice.answererID] = ch
+				go func() {
+					time.Sleep(waitingForIceCandidateAndAnswerTimeout)
+					a.Lock()
+					delete(a.AnsID2iceToAnsChan, ice.answererID)
+					a.Unlock()
+				}()
 			}
+			a.Unlock()
 			ch <- ice.iceCandidate
 
 		case <-a.recvCloseIceToAnsCh:

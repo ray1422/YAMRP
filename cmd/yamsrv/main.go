@@ -6,11 +6,13 @@ import (
 	"os"
 
 	"github.com/ray1422/yamrp/server"
+	log "github.com/sirupsen/logrus"
 )
 
 var grpcURL = "0.0.0.0:6666"
 
 func main() {
+	log.SetLevel(log.DebugLevel)
 	if os.Getenv("GRPC_URL") != "" {
 		grpcURL = os.Getenv("GRPC_URL")
 	} else {

@@ -67,7 +67,7 @@ func TestAnswerServer(t *testing.T) {
 	}()
 
 	offerCh <- offering{
-		offererID:  "offerer_id",
+		hostID:     "host_id",
 		answererID: "answerer_id",
 		offer:      `{"offer": "valid JSON"}`,
 	}

@@ -27,6 +27,7 @@ type AgentNetConn struct {
 
 	user   UserModel
 	ansAPI proto.YAMRPAnswererClient
+	hostID string
 }
 
 // NewAgent creates a new TCP agent.
@@ -35,6 +36,7 @@ func NewAgent(addr string,
 	pcBuilder PeerConnBuilder,
 	user UserModel,
 	ansAPI proto.YAMRPAnswererClient,
+	hostID string,
 	// hostAPI proto.HostClient, // FIXME
 ) (*AgentNetConn, error) {
 	ret := &AgentNetConn{
@@ -44,6 +46,7 @@ func NewAgent(addr string,
 		user:      user,
 		pcBuilder: pcBuilder,
 		ansAPI:    ansAPI,
+		hostID:    hostID,
 	}
 	return ret, nil
 }
@@ -113,6 +116,7 @@ func (a *AgentNetConn) initWebRTCAsAnswerer(config webrtc.Configuration) chan ut
 		Token: &proto.AuthToken{
 			Token: a.user.Token(),
 		},
+		HostId: a.hostID,
 	})
 	if err != nil && err != io.EOF {
 		go func() { ch <- utils.Result[peerConnAbstract]{Err: err} }()

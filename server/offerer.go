@@ -18,8 +18,7 @@ import (
 type offering struct {
 	// offererID
 	//
-	// Deprecated: answerID is deprecated. use answererID only.
-	offererID string
+	hostID string
 	// answerID
 	answererID string
 	offer      string
@@ -154,9 +153,9 @@ func (o *OffererServer) SendOffer(ctx2 context.Context, req *proto.SendOfferRequ
 
 	select {
 	case o.offerCh <- offering{
-		offererID:  offID,
+		hostID:     req.GetHostId(),
 		answererID: ansID,
-		offer:      req.Offer,
+		offer:      req.GetOffer(),
 	}:
 	case <-ctx.Done():
 		log.Warnf("timeout when sending offer")

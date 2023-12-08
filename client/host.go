@@ -59,7 +59,7 @@ func HostLogin(username string,
 
 // StartAgent starts a new agent.
 func (h *Host) StartAgent() {
-	agent, err := NewAgent(h.addr, "tcp", NewPeerConnBuilder(), h.user, h.answerAPI)
+	agent, err := NewAgent(h.addr, "tcp", NewPeerConnBuilder(), h.user, h.answerAPI, h.hostID)
 	if err != nil {
 		log.Errorf("host %s failed to create new agent: %v", h.hostAPI, err)
 		return

@@ -84,7 +84,7 @@ func TestOffererWhenOffer(t *testing.T) {
 	assert.Equal(t, "test_host", newOfferID)
 	assert.Equal(t, res.AnswererId, recvOffer.answererID)
 	assert.NotEmpty(t, recvOffer.answererID)
-	assert.NotEmpty(t, recvOffer.offererID)
+	assert.NotEmpty(t, recvOffer.hostID)
 
 	t.Log("offer sent, answererID: ", recvOffer.answererID)
 

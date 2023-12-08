@@ -36,6 +36,7 @@ func createAgent(ansAPI proto.YAMRPAnswererClient) *AgentNetConn {
 		&peerConnBuilderImpl{},
 		&UserMock{"my_token_a", "my_id_a"},
 		ansAPI,
+		"host_id",
 	)
 	if err != nil {
 		panic(err)

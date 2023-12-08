@@ -181,6 +181,7 @@ func TestNewAgentConnect(t *testing.T) {
 			&webRTCCase,
 			&UserMock{"my_token_a", "my_id_a"},
 			ansAPI,
+			"host_id",
 		)
 		if !assert.Nil(t, err) {
 			t.Fatalf("err is not nil: %v", err)
